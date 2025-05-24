@@ -13,7 +13,7 @@ WORKDIR=$(pwd)
 DATABASE_DIR="$WORKDIR/database"
 GENOME_DIR="$DATABASE_DIR/complete_genomes"
 BLAST_DB_DIR="$DATABASE_DIR/complete_blast_db"
-FAILED_FLAG="WORKDIR/build_EB_db_failed.flag"
+FAILED_FLAG="$WORKDIR/build_EB_db_failed.flag"
 MONOPHASIC_TYPHIMURIUM_LIST="$DATABASE_DIR/monophasic_Typhimurium_list.txt"
 mkdir -p "$GENOME_DIR"
 mkdir -p "$BLAST_DB_DIR"
@@ -24,33 +24,24 @@ TOTAL_CPUS=$(get_cpus)
 # ============================
 # Step 1: Download genus and species in parallel
 # ============================
-# List of Enterobacteriaceae Genus used to build the database
-GENUS=("Escherichia" "Salmonella" "Shigella" "Klebsiella" "Enterobacter" "Cronobacter" "Citrobacter")
-echo "Starting genus-level download and species-parallelization"
+echo "Starting genus and species download in parallelization"
+printf "%s\n" "Escherichia" "Salmonella" "Shigella" "Klebsiella" "Enterobacter" "Cronobacter" "Citrobacter" > "$GENOME_DIR/genus_list.txt"
 max_parallel_genus=6
-for GENUS in "${GENUS[@]}"; do
-(
-if ! download_single_genus "$GENUS" "$GENOME_DIR"; then
+if ! download_genus "$GENOME_DIR/genus_list.txt" "$GENOME_DIR"; then
 echo "Failed to download genus: $GENUS" >> "$FAILED_FLAG"
 exit 1
 fi
-
+while read -r GENUS; do
 if ! get_species_list "$GENUS" "$GENOME_DIR"; then
 echo "Failed to get species list for: $GENUS" >> "$FAILED_FLAG"
 exit 1
 fi
 
-if ! download_species "$GENUS" "$GENOME_DIR"; then
+if ! download_species "$GENOME_DIR/species_list.txt" "$GENOME_DIR"; then
 echo "Failed to download species under genus: $GENUS" >> "$FAILED_FLAG"
 fi
-) &
-while (( $(jobs -r | wc -l) >= max_parallel_genus )); do
-sleep 1
-done
-done
-# Wait for all background jobs to complete
-wait
-
+done < "$GENOME_DIR/genus_list.txt"
+rm -f "$GENOME_DIR/genus_list.txt"
 # ============================
 # Step 2: Download Salmonella subspecies (sequential) and serotypes in parallel
 # ============================

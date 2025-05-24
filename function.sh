@@ -70,7 +70,11 @@ download_single_species() {
 local species="$1"
 local genus=$(echo "$species" | awk '{print $1}')
 local clean_species=$(echo "$species" | sed 's/ /_/g')
-local species_dir="${output_dir}/${genus}/${clean_species}"
+if [[ "$genus" == "$clean_species" ]]; then
+species_dir="${output_dir}/${genus}"
+else
+species_dir="${output_dir}/${genus}/${clean_species}"
+fi
 [[ "$species" == "Salmonella enterica" ]] && species_dir="$species_dir/aggregated"
 mkdir -p "$species_dir"
 if [[ -n "$(find "$species_dir" -maxdepth 1 -type f -name "*_genomic.fna" 2>/dev/null)" ]]; then
@@ -85,7 +89,7 @@ find "$species_dir/genbank" -type f -name "*_genomic.fna.gz" -exec sh -c 'gzip -
 rm -rf "$species_dir/genbank"
 fi
 if [[ -z "$(find "$species_dir" -maxdepth 1 -type f -name "*_genomic.fna" 2>/dev/null)" ]]; then
-echo "No genomes found for $SPECIES. Remove empty directory."
+echo "No genomes found for $species. Remove empty directory."
 rm -rf "$species_dir"
 fi
 }
