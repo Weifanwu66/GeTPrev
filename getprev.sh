@@ -246,83 +246,105 @@ if [[ -n "${DOWNLOAD_FILE:-}" ]]; then
 echo "Custom panel download requested."
 GENOME_DIR="$CUSTOM_GENOMES_DIR"
 CUSTOM_PANEL_CHECKPOINT="$GENOME_DIR/.custom_download_complete"
-mkdir -p "$GENOME_DIR"
-mkdir -p "$BLAST_DB_DIR"
+mkdir -p "$GENOME_DIR" "$BLAST_DB_DIR"
 > "$FAILED_FLAG"
+
 if [[ -f "$CUSTOM_PANEL_CHECKPOINT" && "${FORCE_REBUILD_CUSTOM:-0}" -eq 0 ]]; then
-echo "Custom panel database already downloaded. Skipping rebuild."
+echo "Custom panel database already exists. Skipping rebuild."
 else
-max_parallel_jobs=8
-while IFS= read -r raw_line || [ -n "$raw_line" ]; do
+max_parallel_genus=6
+max_parallel_species=4
+genus_pids=()
+
+while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
 taxon=$(echo "$raw_line" | tr -d '\r')
 [[ -z "$taxon" ]] && continue
+
 (
 if [[ "$taxon" == "Salmonella" || "$taxon" == "Salmonella enterica" ]]; then
-echo "$taxon detected. Downloading all subspecies and serotypes."
-if ! get_salmonella_subsp_list "$GENOME_DIR"; then
-echo "Failed to get Salmonella subspecies list" >> "$FAILED_FLAG"; exit 1
-fi
-if ! download_salmonella_subsp "$GENOME_DIR"; then
-echo "Failed to download Salmonella subspecies" >> "$FAILED_FLAG"; exit 1
-fi
-if ! get_salmonella_serotype_list "$GENOME_DIR"; then
-echo "Failed to get Salmonella serotype list" >> "$FAILED_FLAG"; exit 1
-fi
-if ! download_salmonella_serotype "$GENOME_DIR"; then
-echo "Failed to download Salmonella serotypes" >> "$FAILED_FLAG"; exit 1
-fi
+echo "Detected $taxon. Downloading all subspecies and serotypes."
+if ! get_salmonella_subsp_list "$GENOME_DIR"; then echo "Failed to get Salmonella subspecies list" >> "$FAILED_FLAG"; exit 1; fi
+if ! download_salmonella_subsp "$GENOME_DIR"; then echo "Failed to download Salmonella subspecies" >> "$FAILED_FLAG"; exit 1; fi
+if ! get_salmonella_serotype_list "$GENOME_DIR"; then echo "Failed to get Salmonella serotype list" >> "$FAILED_FLAG"; exit 1; fi
+if ! download_salmonella_serotype "$GENOME_DIR"; then echo "Failed to download Salmonella serotypes" >> "$FAILED_FLAG"; exit 1; fi
+
 elif [[ "$taxon" == "Salmonella enterica subsp. enterica" ]]; then
-echo "Downloading all serotypes under 'Salmonella enterica subsp. enterica'"
-if ! get_salmonella_serotype_list "$GENOME_DIR"; then
-echo "Failed to get serotype list" >> "$FAILED_FLAG"; exit 1
-fi
-if ! download_salmonella_serotype "$GENOME_DIR"; then
-echo "Failed to download serotypes" >> "$FAILED_FLAG"; exit 1
-fi
+echo "Downloading all serotypes under '$taxon'."
+if ! get_salmonella_serotype_list "$GENOME_DIR"; then echo "Failed to get serotype list" >> "$FAILED_FLAG"; exit 1; fi
+if ! download_salmonella_serotype "$GENOME_DIR"; then echo "Failed to download serotypes" >> "$FAILED_FLAG"; exit 1; fi
+
 elif [[ "$taxon" =~ ^Salmonella( enterica subsp\.?\ enterica serovar)? ([A-Z][a-zA-Z0-9_]+)$ ]]; then
 serotype="${BASH_REMATCH[2]}"
-echo "Downloading $serotype"
+echo "Downloading Salmonella serotype: $serotype"
 echo "$serotype" > "$GENOME_DIR/temp_serotype_list.txt"
 if ! download_salmonella_serotype "$GENOME_DIR" "$GENOME_DIR/temp_serotype_list.txt"; then
 echo "Failed to download serotype: $serotype" >> "$FAILED_FLAG"
 fi
 rm -f "$GENOME_DIR/temp_serotype_list.txt"
+
 elif [[ "$taxon" =~ ^[A-Z][a-z]+$ ]]; then
+echo "Downloading genus: $taxon"
 if ! download_single_genus "$taxon" "$GENOME_DIR"; then
 echo "Failed to download genus: $taxon" >> "$FAILED_FLAG"; exit 1
 fi
-if ! get_species_list "$taxon" "$GENOME_DIR"; then
-echo "Failed to get species list: $taxon" >> "$FAILED_FLAG"; exit 1
+temp_species_list="$GENOME_DIR/species_list_${taxon}.txt"
+if ! get_species_list "$taxon" "$temp_species_list"; then
+echo "Failed to get species list for genus: $taxon" >> "$FAILED_FLAG"; exit 1
 fi
-if ! download_species "$GENOME_DIR/species_list.txt" "$GENOME_DIR"; then
-echo "Failed to download species for $taxon" >> "$FAILED_FLAG"
+sort "$temp_species_list" | uniq > "${temp_species_list}.dedup"
+mv "${temp_species_list}.dedup" "$temp_species_list"
+echo "Expanding genus $taxon into species-level downloads."
+sp_pids=()
+while IFS= read -r species; do
+[[ -z "$species" ]] && continue
+(
+echo "Downloading species: $species (under genus $taxon)"
+if ! download_species "$species" "$GENOME_DIR"; then
+echo "Failed to download species: $species under genus: $taxon" >> "$FAILED_FLAG"
 fi
+) &
+sp_pids+=($!)
+if (( ${#sp_pids[@]} >= max_parallel_species )); then
+wait "${sp_pids[@]}"
+sp_pids=()
+fi
+done < "$temp_species_list"
+wait "${sp_pids[@]}"
+
 elif [[ "$taxon" =~ ^[A-Z][a-z]+\ [a-z]+$ ]]; then
+echo "Downloading specific species: $taxon"
 if ! download_species "$taxon" "$GENOME_DIR"; then
 echo "Failed to download species: $taxon" >> "$FAILED_FLAG"
 fi
 fi
 ) &
-while (( $(jobs -r | wc -l) >= max_parallel_jobs )); do
-sleep 1
-done
+
+genus_pids+=($!)
+if (( ${#genus_pids[@]} >= max_parallel_genus )); then
+wait "${genus_pids[@]}"
+genus_pids=()
+fi
 done < "$DOWNLOAD_FILE"
-wait
-echo "Organizing unclassified genomes"
+
+wait "${genus_pids[@]}"
+echo "Organizing unclassified genomes."
 move_unclassified_genomes "$GENOME_DIR"
-echo "Building BLAST databases for custom panel"
+echo "Building BLAST databases for the custom panel."
 build_blastdb "$GENOME_DIR" "$BLAST_DB_DIR"
+
 if [[ -s "$FAILED_FLAG" ]]; then
-echo "Custom panel completed with some failures. See $FAILED_FLAG"
+echo "Custom panel completed with some failures. See $FAILED_FLAG for details."
 else
-echo "Custom panel build complete."
+echo "Custom panel build completed successfully."
 touch "$CUSTOM_PANEL_CHECKPOINT"
 fi
 fi
+
 else
 GENOME_DIR=""
 echo "Default mode: using prebuilt BLAST database."
 fi
+
 # Set delimiter as a space
 if [[ -n "$TAXON_FILE" ]]; then
 if [[ ! -f "$TAXON_FILE" ]]; then
