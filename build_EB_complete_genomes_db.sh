@@ -28,48 +28,59 @@ echo "Starting genus and species download in parallelization"
 printf "%s\n" "Escherichia" "Salmonella" "Shigella" "Klebsiella" "Enterobacter" "Cronobacter" "Citrobacter" > "$GENOME_DIR/genus_list.txt"
 max_parallel_genus=6
 max_parallel_species=4
-running_genus_jobs=0
+
+genus_job_pids=()
+
 while read -r GENUS; do
-    (
-        echo "Starting genus: $GENUS"
+  (
+    echo "[GENUS] Starting $GENUS"
 
-        if ! download_single_genus "$GENUS" "$GENOME_DIR"; then
-            echo "Failed to download genus: $GENUS" >> "$FAILED_FLAG"
-            exit 1
+    if ! download_single_genus "$GENUS" "$GENOME_DIR"; then
+        echo "Failed to download genus: $GENUS" >> "$FAILED_FLAG"
+        exit 1
+    fi
+
+    temp_species_list="$GENOME_DIR/species_list_${GENUS}.txt"
+    if ! get_species_list "$GENUS" "$temp_species_list"; then
+        echo "Failed to get species list for: $GENUS" >> "$FAILED_FLAG"
+        exit 1
+    fi
+
+    sort "$temp_species_list" | uniq > "${temp_species_list}.dedup"
+    mv "${temp_species_list}.dedup" "$temp_species_list"
+
+    echo "[GENUS] $GENUS: Starting species downloads"
+
+    sp_pids=()
+    while IFS= read -r species; do
+      [[ -z "$species" ]] && continue
+      (
+        echo "[SPECIES] $GENUS: Downloading $species"
+        if ! download_species "$species" "$GENOME_DIR"; then
+          echo "Failed to download $species under $GENUS" >> "$FAILED_FLAG"
         fi
+      ) &
+      sp_pids+=($!)
 
-        temp_species_list="$GENOME_DIR/species_list_${GENUS}.txt"
-        if ! get_species_list "$GENUS" "$temp_species_list"; then
-            echo "Failed to get species list for: $GENUS" >> "$FAILED_FLAG"
-            exit 1
-        fi
+      if (( ${#sp_pids[@]} >= max_parallel_species )); then
+        wait "${sp_pids[@]}"
+        sp_pids=()
+      fi
+    done < "$temp_species_list"
+    wait "${sp_pids[@]}"
+    echo "[GENUS] Finished $GENUS"
+  ) &
 
-        sort "$temp_species_list" | uniq > "${temp_species_list}.dedup"
-        mv "${temp_species_list}.dedup" "$temp_species_list"
+  genus_job_pids+=($!)
 
-        # Inner species download
-        echo "Downloading species under $GENUS..."
-        while IFS= read -r species; do
-            [[ -z "$species" ]] && continue
-            (
-                if ! download_species "$species" "$GENOME_DIR"; then
-                    echo "Failed to download $species under genus: $GENUS" >> "$FAILED_FLAG"
-                fi
-            ) &
-            # throttle species jobs
-            while (( $(jobs -r | wc -l) >= max_parallel_species )); do
-                sleep 1
-            done
-        done < "$temp_species_list"
-        wait
-    ) &
-
-    # throttle genus jobs
-    while (( $(jobs -r | wc -l) >= max_parallel_genus )); do
-        sleep 1
-    done
+  if (( ${#genus_job_pids[@]} >= max_parallel_genus )); then
+    wait "${genus_job_pids[@]}"
+    genus_job_pids=()
+  fi
 done < "$GENOME_DIR/genus_list.txt"
-wait
+
+# Wait for any remaining genus jobs
+wait "${genus_job_pids[@]}"
 cat "$GENOME_DIR"/species_list_*.txt | sort | uniq > "$GENOME_DIR/species_list.txt"
 rm -f "$GENOME_DIR"/species_list_*.txt "$GENOME_DIR/genus_list.txt"
 # ============================
