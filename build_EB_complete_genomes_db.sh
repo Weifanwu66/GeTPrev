@@ -30,39 +30,44 @@ max_parallel_genus=6
 max_parallel_species=4
 running_genus_jobs=0
 while read -r GENUS; do
-(
-if ! download_single_genus "$GENUS" "$GENOME_DIR"; then
-echo "Failed to download genus: $GENUS" >> "$FAILED_FLAG"
-exit 1
-fi
-temp_species_list="$GENOME_DIR/species_list_${GENUS}.txt"
-if ! get_species_list "$GENUS" "$temp_species_list"; then
-echo "Failed to get species list for: $GENUS" >> "$FAILED_FLAG"
-exit 1
-fi
-sort "$temp_species_list" | uniq > "${temp_species_list}.dedup"
-mv "${temp_species_list}.dedup" "$temp_species_list"
-species_jobs=0
-while IFS= read -r species; do
-[[ -z "$species" ]] && continue
-(
-if ! download_species "$species" "$GENOME_DIR"; then
-echo "Failed to download $species under genus: $GENUS" >> "$FAILED_FLAG"
-fi
-) &
-((species_jobs++))
-if (( species_jobs >= max_parallel_species )); then
-wait
-species_jobs=0
-fi
-done < "$temp_species_list"
-wait
-) &
-((running_genus_jobs++))
-if (( running_genus_jobs >= max_parallel_genus )); then
-wait
-running_genus_jobs=0
-fi
+    (
+        echo "Starting genus: $GENUS"
+
+        if ! download_single_genus "$GENUS" "$GENOME_DIR"; then
+            echo "Failed to download genus: $GENUS" >> "$FAILED_FLAG"
+            exit 1
+        fi
+
+        temp_species_list="$GENOME_DIR/species_list_${GENUS}.txt"
+        if ! get_species_list "$GENUS" "$temp_species_list"; then
+            echo "Failed to get species list for: $GENUS" >> "$FAILED_FLAG"
+            exit 1
+        fi
+
+        sort "$temp_species_list" | uniq > "${temp_species_list}.dedup"
+        mv "${temp_species_list}.dedup" "$temp_species_list"
+
+        # Inner species download
+        echo "Downloading species under $GENUS..."
+        while IFS= read -r species; do
+            [[ -z "$species" ]] && continue
+            (
+                if ! download_species "$species" "$GENOME_DIR"; then
+                    echo "Failed to download $species under genus: $GENUS" >> "$FAILED_FLAG"
+                fi
+            ) &
+            # throttle species jobs
+            while (( $(jobs -r | wc -l) >= max_parallel_species )); do
+                sleep 1
+            done
+        done < "$temp_species_list"
+        wait
+    ) &
+
+    # throttle genus jobs
+    while (( $(jobs -r | wc -l) >= max_parallel_genus )); do
+        sleep 1
+    done
 done < "$GENOME_DIR/genus_list.txt"
 wait
 cat "$GENOME_DIR"/species_list_*.txt | sort | uniq > "$GENOME_DIR/species_list.txt"
