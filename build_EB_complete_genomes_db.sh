@@ -27,21 +27,40 @@ TOTAL_CPUS=$(get_cpus)
 echo "Starting genus and species download in parallelization"
 printf "%s\n" "Escherichia" "Salmonella" "Shigella" "Klebsiella" "Enterobacter" "Cronobacter" "Citrobacter" > "$GENOME_DIR/genus_list.txt"
 max_parallel_genus=6
-if ! download_genus "$GENOME_DIR/genus_list.txt" "$GENOME_DIR"; then
+max_parallel_species=4
+while read -r GENUS; do
+(
+if ! download_single_genus "$GENUS" "$GENOME_DIR"; then
 echo "Failed to download genus: $GENUS" >> "$FAILED_FLAG"
 exit 1
 fi
-while read -r GENUS; do
-if ! get_species_list "$GENUS" "$GENOME_DIR"; then
+temp_species_list="$GENOME_DIR/species_list_${GENUS}.txt"
+if ! get_species_list "$GENUS" "$temp_species_list"; then
 echo "Failed to get species list for: $GENUS" >> "$FAILED_FLAG"
 exit 1
 fi
-
-if ! download_species "$GENOME_DIR/species_list.txt" "$GENOME_DIR"; then
+sort "$temp_species_list" | uniq > "${temp_species_list}.dedup"
+mv "${temp_species_list}.dedup" "$temp_species_list"
+while IFS= read -r species; do
+[[ -z "$species" ]] && continue
+(
+if ! download_species "$species" "$GENOME_DIR"; then
 echo "Failed to download species under genus: $GENUS" >> "$FAILED_FLAG"
 fi
+) &
+while (( $(jobs -r | wc -l) >= max_parallel_species )); do
+sleep 1
+done
+done < "$temp_species_list"
+wait
+) &
+while (( $(jobs -r | wc -l) >= max_parallel_genus )); do
+sleep 1
+done
 done < "$GENOME_DIR/genus_list.txt"
-rm -f "$GENOME_DIR/genus_list.txt"
+wait
+cat "$GENOME_DIR"/species_list_*.txt | sort | uniq > "$GENOME_DIR/species_list.txt"
+rm -f "$GENOME_DIR"/species_list_*.txt "$GENOME_DIR/genus_list.txt"
 # ============================
 # Step 2: Download Salmonella subspecies (sequential) and serotypes in parallel
 # ============================
