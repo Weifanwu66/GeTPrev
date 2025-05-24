@@ -196,7 +196,7 @@ bash getprev.sh -g test_gene.fasta -q ceres -r 02:00:00 -m 8G -C 4 -O true
 ### 7. Rebuild default EB database
 
 ```bash
-bash build_EB_complete_genomes_database.sh
+sbatch build_EB_complete_genomes_database.sh
 ```
 > ⚠️ This script downloads and formats the default Enterobacteriaceae database.  
 > It includes 7 genus: *Salmonella, Escherichia, Enterobacter, Klebsiella, Cronobacter, Citrobacter,* and *Shigella*.  
