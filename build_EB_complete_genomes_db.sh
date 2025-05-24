@@ -27,9 +27,10 @@ TOTAL_CPUS=$(get_cpus)
 # List of Enterobacteriaceae Genus used to build the database
 GENUS=("Escherichia" "Salmonella" "Shigella" "Klebsiella" "Enterobacter" "Cronobacter" "Citrobacter")
 echo "Starting genus-level download and species-parallelization"
+max_parallel_genus=6
 for GENUS in "${GENUS[@]}"; do
 (
-if ! download_genus "$GENUS" "$GENOME_DIR"; then
+if ! download_single_genus "$GENUS" "$GENOME_DIR"; then
 echo "Failed to download genus: $GENUS" >> "$FAILED_FLAG"
 exit 1
 fi
@@ -43,7 +44,7 @@ if ! download_species "$GENUS" "$GENOME_DIR"; then
 echo "Failed to download species under genus: $GENUS" >> "$FAILED_FLAG"
 fi
 ) &
-while (( $(jobs -r | wc -l) >= 6 )); do
+while (( $(jobs -r | wc -l) >= max_parallel_genus )); do
 sleep 1
 done
 done

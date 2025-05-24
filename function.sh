@@ -10,15 +10,10 @@ nproc
 fi
 }
 # Build a function to download genus-level genomes using ncbi-genome-download
-function download_genus() {
-local input="$1"
-local output_dir="$2"
-local total_cpus=$(get_cpus)
-local cores_half=$(( total_cpus / 2 ))
-local max_parallel_genus=$(( cores_half < 1 ? 1 : (cores_half > 6 ? 6 : cores_half) ))
 # Download a single genus
-download_single_genus() {
+function download_single_genus() {
 local genus="$1"
+local output_dir="$2"
 local genus_dir="${output_dir}/${genus}/aggregated"
 if [[ -n "$(find "$genus_dir" -maxdepth 1 -type f -name "*_genomic.fna" 2>/dev/null)" ]]; then
 echo "Genomes already exist for $genus, skipping"
@@ -31,18 +26,27 @@ find "$genus_dir/genbank" -type f -name "*_genomic.fna.gz" -exec sh -c 'gzip -d 
 rm -rf "$genus_dir/genbank"
 echo "Downloaded and organized genomes for $genus"
 }
+
+function download_genus() {
+local input="$1"
+local output_dir="$2"
+local total_cpus=$(get_cpus)
+local cores_half=$(( total_cpus / 2 ))
+local max_parallel_genus=$(( cores_half < 1 ? 1 : (cores_half > 6 ? 6 : cores_half) ))
 if [[ -f "$input" ]]; then
 while read -r genus; do
+[[ -z "$genus" ]] && continue
 (
-download_single_genus "$genus"
+download_single_genus "$genus" "$output_dir"
 ) &
 while (( $(jobs -r | wc -l) >= max_parallel_genus )); do sleep 1; done
 done < "$input"
 wait
 else
-download_single_genus "$input"
+download_single_genus "$input" "$output_dir"
 fi
 }
+
 # Build a function to get all species names under each target genus
 function get_species_list() {
 local target_genus="$1"

@@ -20,6 +20,7 @@ DRAFT_BLAST_DB_DIR="${DATABASE_DIR}/draft_blast_db"
 DRAFT_BLAST_RESULT_DIR="${WORK_DIR}/result/draft_blast_results"
 FILTERED_DRAFT_BLAST_RESULT_DIR="${WORK_DIR}/result/filtered_draft_blast_results"
 OVERWRITE=false
+FORCE_REBUILD_CUSTOM=0
 # job scheduler variables
 runtime=24:00:00; hpcmem=360GB; hpcthreads=72; hpc=F; queue=NA; account=NA
 # usage setup
@@ -43,7 +44,8 @@ usage() {
     echo "-a ACCOUNT        : SLURM account/project (if needed)."
     echo "-H MODE           : Analysis mode ('light' or 'heavy'). Default is light."
     echo "-O OVERWRITE      : Set to true to overwrite previous results (default: false)."
-    echo "-h, --help        : Show this help message and exit."
+    echo "--force-custom-download : Set to true to rebuild previous custom complete genomes database (default: false)."
+echo "-h, --help        : Show this help message and exit."
 }
 # Parse argument (adapted)
 while [[ "$#" -gt 0 ]]; do
@@ -63,8 +65,17 @@ while [[ "$#" -gt 0 ]]; do
         -H) MODE="$2"; shift 2 ;;
         -O) OVERWRITE="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
+        --force-custom-download)
+          if [[ "$2" == "true" ]]; then
+           FORCE_REBUILD_CUSTOM=1
+          else
+           FORCE_REBUILD_CUSTOM=0
+          fi
+          shift
+          ;;
         *) echo "Invalid option: $1"; usage; exit 1 ;;
     esac
+    shift
 done
 
 #adapted from GEAbash_v1.0.0; seems to be working as expected
@@ -115,31 +126,31 @@ fi
 ###if sge...
 if [[ " ${submsys} " = " sge " ]]
 #alert the user
-then echo -n "preparing to run EGP in hpc cluster mode. "
-echo -n "EGP log outputs will be in the hpc submission system "
-echo "log files for sge. e.g., EGP.e* & EGP.o*"
+then echo -n "preparing to run getprev in hpc cluster mode. "
+echo -n "getprev log outputs will be in the hpc submission system "
+echo "log files for sge. e.g., getprev.e* & getprev.o*"
 #edit the sge template with local variables and user arguments
-sed -i "s/name/sge2_EGP/g" sge2.sh #local
+sed -i "s/name/sge2_getprev/g" sge2.sh #local
 sed -i "s/queue/$queue/g" sge2.sh #user
 sed -i "s/runtime/$runtime/g" sge2.sh #user
 sed -i "s/RAM/$hpcmem/g" sge2.sh #user
 sed -i "s/hpctasks/$hpcthreads/g" sge2.sh #user
-#write the EGP command to the sge template
+#write the getprev command to the sge template
 #to use this design syntax, all user options need single dash shortcuts
 #e.g --mode heavy and --overwrite become -H heavy and -O true respectively.
 #lines 201-205 assume -m <RAM> -q <queue> -r <runtime> in 
-#user supplied arguments to EGP or EGP defaults
+#user supplied arguments to getprev or getprev defaults
 #lines 214,221 assume -g -c -i -o -H -O -t in 
-#user supplied arguments to EGP or EGP defaults
+#user supplied arguments to getprev or getprev defaults
 sed -i \
-'s%command%bash EGP.sh -g "${GENE_FILE}" -c "${MIN_COVERAGE}" -i "${MIN_IDENTITY}" -o "${OUTPUT_FILE}" -H "${MODE}" -O "${OVERWRITE}" -t "${TAXON_FILE}" -d "${DOWNLOAD_FILE}" -p T%g' \
+'s%command%bash getprev.sh -g \"\$GENE_FILE\" -c \"\$MIN_COVERAGE\" -i \"\$MIN_IDENTITY\" -o \"\$OUTPUT_FILE\" -H \"\$MODE\" -O \"\$OVERWRITE\" -t \"\$TAXON_FILE\" -d \"\$DOWNLOAD_FILE\" --force-custom-download \"\$FORCE_REBUILD_CUSTOM\" -p T%g' \
 sge2.sh
 #write the needed variables to the sge template
 #the last variable tells EGP that ${"hpc"} = T
 #so that this entire while loop will be skipped
 #by the EGP resubmission
 sed -i \
-"s%vars%OVERWRITE='$OVERWRITE'; GENE_FILE='$GENE_FILE'; MIN_COVERAGE='$MIN_COVERAGE'; MIN_IDENTITY='$MIN_IDENTITY'; OUTPUT_FILE='$OUTPUT_FILE'; MODE='$MODE'; TAXON_FILE='$TAXON_FILE'; DOWNLOAD_FILE='$DOWNLOAD_FILE'%g" \
+"s%vars%OVERWRITE='\$OVERWRITE'; GENE_FILE='\$GENE_FILE'; MIN_COVERAGE='\$MIN_COVERAGE'; MIN_IDENTITY='\$MIN_IDENTITY'; OUTPUT_FILE='\$OUTPUT_FILE'; MODE='\$MODE'; TAXON_FILE='\$TAXON_FILE'; DOWNLOAD_FILE='\$DOWNLOAD_FILE'; FORCE_REBUILD_CUSTOM='\$FORCE_REBUILD_CUSTOM'%g" \
 sge2.sh
 
 #make sure the user provided account is written to the template
@@ -168,14 +179,14 @@ sed -i "s/hpctasks/$hpcthreads/g" slurm2.sh #user
 sed -i 's/other/$other/g' slurm2.sh #local.
 #write the GEA command to the slurm template
 sed -i \
-'s%command%bash EGP.sh -g "${GENE_FILE}" -c "${MIN_COVERAGE}" -i "${MIN_IDENTITY}" -o "${OUTPUT_FILE}" -H "${MODE}" -O "${OVERWRITE}" -t "${TAXON_FILE}" -d "${DOWNLOAD_FILE}" -p T%g' \
+'s%command%bash getprev.sh -g \"\$GENE_FILE\" -c \"\$MIN_COVERAGE\" -i \"\$MIN_IDENTITY\" -o \"\$OUTPUT_FILE\" -H \"\$MODE\" -O \"\$OVERWRITE\" -t \"\$TAXON_FILE\" -d \"\$DOWNLOAD_FILE\" --force-custom-download \"\$FORCE_REBUILD_CUSTOM\" -p T%g' \
 slurm2.sh
 #write the needed variables to the slurm template
 #the last variable tells EGP that ${"hpc"} = T
 #so that this entire while loop will be skipped
 #by the EGP resubmission
 sed -i \
-"s%vars%OVERWRITE='$OVERWRITE'; GENE_FILE='$GENE_FILE'; MIN_COVERAGE='$MIN_COVERAGE'; MIN_IDENTITY='$MIN_IDENTITY'; OUTPUT_FILE='$OUTPUT_FILE'; MODE='$MODE'; TAXON_FILE='$TAXON_FILE'; DOWNLOAD_FILE='$DOWNLOAD_FILE'%g" \
+"s%vars%OVERWRITE='\$OVERWRITE'; GENE_FILE='\$GENE_FILE'; MIN_COVERAGE='\$MIN_COVERAGE'; MIN_IDENTITY='\$MIN_IDENTITY'; OUTPUT_FILE='\$OUTPUT_FILE'; MODE='\$MODE'; TAXON_FILE='\$TAXON_FILE'; DOWNLOAD_FILE='\$DOWNLOAD_FILE'; FORCE_REBUILD_CUSTOM='\$FORCE_REBUILD_CUSTOM'%g" \
 slurm2.sh
 
 #make sure the user provided account is written to the template
@@ -231,11 +242,16 @@ fi
 mkdir -p "$BLAST_RESULT_DIR" "$FILTERED_BLAST_RESULT_DIR"
 source "${WORK_DIR}/function.sh" || { echo "Error sourcing function.sh". exit 1; }
 # Handle custom download if provided
-if [[ -n "$DOWNLOAD_FILE" ]]; then
+if [[ -n "${DOWNLOAD_FILE:-}" ]]; then
 echo "Custom panel download requested."
 GENOME_DIR="$CUSTOM_GENOMES_DIR"
+CUSTOM_PANEL_CHECKPOINT="$GENOME_DIR/.custom_download_complete"
 mkdir -p "$GENOME_DIR"
 mkdir -p "$BLAST_DB_DIR"
+> "$FAILED_FLAG"
+if [[ -f "$CUSTOM_PANEL_CHECKPOINT" && "${FORCE_REBUILD_CUSTOM:-0}" -eq 0 ]]; then
+echo "Custom panel database already downloaded. Skipping rebuild."
+else
 max_parallel_jobs=8
 while IFS= read -r raw_line || [ -n "$raw_line" ]; do
 taxon=$(echo "$raw_line" | tr -d '\r')
@@ -272,11 +288,7 @@ echo "Failed to download serotype: $serotype" >> "$FAILED_FLAG"
 fi
 rm -f "$GENOME_DIR/temp_serotype_list.txt"
 elif [[ "$taxon" =~ ^[A-Z][a-z]+$ ]]; then
-GENUS_DIR="${GENOME_DIR}/${taxon}"
-if [[ -d "$GENUS_DIR" ]]; then
-echo "Genus $taxon already downloaded. Skipping."
-else
-if ! download_genus "$taxon" "$GENOME_DIR"; then
+if ! download_single_genus "$taxon" "$GENOME_DIR"; then
 echo "Failed to download genus: $taxon" >> "$FAILED_FLAG"; exit 1
 fi
 if ! get_species_list "$taxon" "$GENOME_DIR"; then
@@ -285,15 +297,9 @@ fi
 if ! download_species "$GENOME_DIR/species_list.txt" "$GENOME_DIR"; then
 echo "Failed to download species for $taxon" >> "$FAILED_FLAG"
 fi
-fi
 elif [[ "$taxon" =~ ^[A-Z][a-z]+\ [a-z]+$ ]]; then
-SPECIES_DIR="${GENOME_DIR}/${taxon// /_}"
-if [[ -d "$SPECIES_DIR" ]]; then
-echo "Species $taxon already downloaded. Skipping."
-else
 if ! download_species "$taxon" "$GENOME_DIR"; then
 echo "Failed to download species: $taxon" >> "$FAILED_FLAG"
-fi
 fi
 fi
 ) &
@@ -310,6 +316,8 @@ if [[ -s "$FAILED_FLAG" ]]; then
 echo "Custom panel completed with some failures. See $FAILED_FLAG"
 else
 echo "Custom panel build complete."
+touch "$CUSTOM_PANEL_CHECKPOINT"
+fi
 fi
 else
 GENOME_DIR=""
