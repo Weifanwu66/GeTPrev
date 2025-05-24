@@ -20,12 +20,12 @@ DRAFT_BLAST_DB_DIR="${DATABASE_DIR}/draft_blast_db"
 DRAFT_BLAST_RESULT_DIR="${WORK_DIR}/result/draft_blast_results"
 FILTERED_DRAFT_BLAST_RESULT_DIR="${WORK_DIR}/result/filtered_draft_blast_results"
 OVERWRITE=false
-FORCE_REBUILD_CUSTOM=0
+FORCE_REBUILD=false
 # job scheduler variables
 runtime=24:00:00; hpcmem=360GB; hpcthreads=72; hpc=F; queue=NA; account=NA
 # usage setup
 usage() {
-    echo "Usage: $0 -g GENE_FILE [-t TAXON_FILE] [-d DOWNLOAD_FILE] [-c COVERAGE] [-i IDENTITY] [-o OUTPUT_FILE] [-p HPC_CLUSTER] [-q QUEUE] [-r RUNTIME] [-m MEMORY] [-C THREADS] [-a ACCOUNT] [-H MODE] [-O OVERWRITE] [-h|--help]"
+    echo "Usage: $0 -g GENE_FILE [-t TAXON_FILE] [-d DOWNLOAD_FILE] [-c COVERAGE] [-i IDENTITY] [-o OUTPUT_FILE] [-p HPC_CLUSTER] [-q QUEUE] [-r RUNTIME] [-m MEMORY] [-C THREADS] [-a ACCOUNT] [-H MODE] [-O OVERWRITE] [-F FORCE_REBUILD] [-h|--help]"
     echo ""
     echo "Required arguments:"
     echo "-g GENE_FILE      : FASTA file containing target gene sequences."
@@ -44,7 +44,7 @@ usage() {
     echo "-a ACCOUNT        : SLURM account/project (if needed)."
     echo "-H MODE           : Analysis mode ('light' or 'heavy'). Default is light."
     echo "-O OVERWRITE      : Set to true to overwrite previous results (default: false)."
-    echo "--force-custom-download : Set to true to rebuild previous custom complete genomes database (default: false)."
+    echo "-F FORCE_REBUILD  : Set to true to rebuild previous custom complete genomes database (default: false)."
 echo "-h, --help        : Show this help message and exit."
 }
 # Parse argument (adapted)
@@ -64,13 +64,8 @@ while [[ "$#" -gt 0 ]]; do
         -a) account="$2"; shift 2 ;;
         -H) MODE="$2"; shift 2 ;;
         -O) OVERWRITE="$2"; shift 2 ;;
+        -F) FORCE_REBUILD="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
-        --force-custom-download)
-          if [[ "$2" == "true" ]]; then
-           FORCE_REBUILD_CUSTOM=1
-          else
-           FORCE_REBUILD_CUSTOM=0
-          fi
           shift
           ;;
         *) echo "Invalid option: $1"; usage; exit 1 ;;
@@ -85,7 +80,7 @@ done
 #    i) MIN_IDENTITY="${OPTARG}" ;;    o) OUTPUT_FILE="${OPTARG}" ;;    p) hpc="${OPTARG}" ;;
 #    q) queue="${OPTARG}" ;;    r) runtime="${OPTARG}" ;;    m) hpcmem="${OPTARG}" ;;
 #    C) hpcthreads="${OPTARG}" ;;    a) account="${OPTARG}" ;;    H) MODE="${OPTARG}" ;;
-#    O) OVERWRITE="${OPTARG}" ;;     
+#    O) OVERWRITE="${OPTARG}" ;;    F) FORCE_REBUILD="${OPTARG}"  
 #    -h|--help) usage; exit 0 ;;
 #    *) echo "Invalid option: $1"; usage
 #       exit 1 ;;    esac; done
@@ -143,14 +138,14 @@ sed -i "s/hpctasks/$hpcthreads/g" sge2.sh #user
 #lines 214,221 assume -g -c -i -o -H -O -t in 
 #user supplied arguments to getprev or getprev defaults
 sed -i \
-'s%command%bash getprev.sh -g \"\$GENE_FILE\" -c \"\$MIN_COVERAGE\" -i \"\$MIN_IDENTITY\" -o \"\$OUTPUT_FILE\" -H \"\$MODE\" -O \"\$OVERWRITE\" -t \"\$TAXON_FILE\" -d \"\$DOWNLOAD_FILE\" --force-custom-download \"\$FORCE_REBUILD_CUSTOM\" -p T%g' \
+'s%command%bash getprev.sh -g \"\$GENE_FILE\" -c \"\$MIN_COVERAGE\" -i \"\$MIN_IDENTITY\" -o \"\$OUTPUT_FILE\" -H \"\$MODE\" -O \"\$OVERWRITE\" -t \"\$TAXON_FILE\" -d \"\$DOWNLOAD_FILE\" --force-custom-download \"\$FORCE_REBUILD\" -p T%g' \
 sge2.sh
 #write the needed variables to the sge template
 #the last variable tells EGP that ${"hpc"} = T
 #so that this entire while loop will be skipped
 #by the EGP resubmission
 sed -i \
-"s%vars%OVERWRITE='\$OVERWRITE'; GENE_FILE='\$GENE_FILE'; MIN_COVERAGE='\$MIN_COVERAGE'; MIN_IDENTITY='\$MIN_IDENTITY'; OUTPUT_FILE='\$OUTPUT_FILE'; MODE='\$MODE'; TAXON_FILE='\$TAXON_FILE'; DOWNLOAD_FILE='\$DOWNLOAD_FILE'; FORCE_REBUILD_CUSTOM='\$FORCE_REBUILD_CUSTOM'%g" \
+"s%vars%OVERWRITE='\$OVERWRITE'; GENE_FILE='\$GENE_FILE'; MIN_COVERAGE='\$MIN_COVERAGE'; MIN_IDENTITY='\$MIN_IDENTITY'; OUTPUT_FILE='\$OUTPUT_FILE'; MODE='\$MODE'; TAXON_FILE='\$TAXON_FILE'; DOWNLOAD_FILE='\$DOWNLOAD_FILE'; FORCE_REBUILD='\$FORCE_REBUILD'%g" \
 sge2.sh
 
 #make sure the user provided account is written to the template
@@ -179,14 +174,14 @@ sed -i "s/hpctasks/$hpcthreads/g" slurm2.sh #user
 sed -i 's/other/$other/g' slurm2.sh #local.
 #write the GEA command to the slurm template
 sed -i \
-'s%command%bash getprev.sh -g \"\$GENE_FILE\" -c \"\$MIN_COVERAGE\" -i \"\$MIN_IDENTITY\" -o \"\$OUTPUT_FILE\" -H \"\$MODE\" -O \"\$OVERWRITE\" -t \"\$TAXON_FILE\" -d \"\$DOWNLOAD_FILE\" --force-custom-download \"\$FORCE_REBUILD_CUSTOM\" -p T%g' \
+'s%command%bash getprev.sh -g \"\$GENE_FILE\" -c \"\$MIN_COVERAGE\" -i \"\$MIN_IDENTITY\" -o \"\$OUTPUT_FILE\" -H \"\$MODE\" -O \"\$OVERWRITE\" -t \"\$TAXON_FILE\" -d \"\$DOWNLOAD_FILE\" --force-custom-download \"\$FORCE_REBUILD\" -p T%g' \
 slurm2.sh
 #write the needed variables to the slurm template
 #the last variable tells EGP that ${"hpc"} = T
 #so that this entire while loop will be skipped
 #by the EGP resubmission
 sed -i \
-"s%vars%OVERWRITE='\$OVERWRITE'; GENE_FILE='\$GENE_FILE'; MIN_COVERAGE='\$MIN_COVERAGE'; MIN_IDENTITY='\$MIN_IDENTITY'; OUTPUT_FILE='\$OUTPUT_FILE'; MODE='\$MODE'; TAXON_FILE='\$TAXON_FILE'; DOWNLOAD_FILE='\$DOWNLOAD_FILE'; FORCE_REBUILD_CUSTOM='\$FORCE_REBUILD_CUSTOM'%g" \
+"s%vars%OVERWRITE='\$OVERWRITE'; GENE_FILE='\$GENE_FILE'; MIN_COVERAGE='\$MIN_COVERAGE'; MIN_IDENTITY='\$MIN_IDENTITY'; OUTPUT_FILE='\$OUTPUT_FILE'; MODE='\$MODE'; TAXON_FILE='\$TAXON_FILE'; DOWNLOAD_FILE='\$DOWNLOAD_FILE'; FORCE_REBUILD='\$FORCE_REBUILD'%g" \
 slurm2.sh
 
 #make sure the user provided account is written to the template
@@ -249,7 +244,7 @@ CUSTOM_PANEL_CHECKPOINT="$GENOME_DIR/.custom_download_complete"
 mkdir -p "$GENOME_DIR" "$BLAST_DB_DIR"
 > "$FAILED_FLAG"
 
-if [[ -f "$CUSTOM_PANEL_CHECKPOINT" && "${FORCE_REBUILD_CUSTOM:-0}" -eq 0 ]]; then
+if [[ -f "$CUSTOM_PANEL_CHECKPOINT" && "${FORCE_REBUILD:-false}" !=true ]]; then
 echo "Custom panel database already exists. Skipping rebuild."
 else
 max_parallel_genus=6
