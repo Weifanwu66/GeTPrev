@@ -66,11 +66,8 @@ while [[ "$#" -gt 0 ]]; do
         -O) OVERWRITE="$2"; shift 2 ;;
         -F) FORCE_REBUILD="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
-          shift
-          ;;
         *) echo "Invalid option: $1"; usage; exit 1 ;;
     esac
-    shift
 done
 
 #adapted from GEAbash_v1.0.0; seems to be working as expected
@@ -138,14 +135,14 @@ sed -i "s/hpctasks/$hpcthreads/g" sge2.sh #user
 #lines 214,221 assume -g -c -i -o -H -O -t in 
 #user supplied arguments to getprev or getprev defaults
 sed -i \
-'s%command%bash getprev.sh -g \"\$GENE_FILE\" -c \"\$MIN_COVERAGE\" -i \"\$MIN_IDENTITY\" -o \"\$OUTPUT_FILE\" -H \"\$MODE\" -O \"\$OVERWRITE\" -t \"\$TAXON_FILE\" -d \"\$DOWNLOAD_FILE\" --force-custom-download \"\$FORCE_REBUILD\" -p T%g' \
+'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" -p T%g' \
 sge2.sh
 #write the needed variables to the sge template
 #the last variable tells EGP that ${"hpc"} = T
 #so that this entire while loop will be skipped
 #by the EGP resubmission
 sed -i \
-"s%vars%OVERWRITE='\$OVERWRITE'; GENE_FILE='\$GENE_FILE'; MIN_COVERAGE='\$MIN_COVERAGE'; MIN_IDENTITY='\$MIN_IDENTITY'; OUTPUT_FILE='\$OUTPUT_FILE'; MODE='\$MODE'; TAXON_FILE='\$TAXON_FILE'; DOWNLOAD_FILE='\$DOWNLOAD_FILE'; FORCE_REBUILD='\$FORCE_REBUILD'%g" \
+"s%vars%OVERWRITE='$OVERWRITE'; GENE_FILE='$GENE_FILE'; MIN_COVERAGE='$MIN_COVERAGE'; MIN_IDENTITY='$MIN_IDENTITY'; OUTPUT_FILE='$OUTPUT_FILE'; MODE='$MODE'; TAXON_FILE='$TAXON_FILE'; DOWNLOAD_FILE='$DOWNLOAD_FILE'; FORCE_REBUILD='$FORCE_REBUILD'%g" \
 sge2.sh
 
 #make sure the user provided account is written to the template
@@ -174,14 +171,14 @@ sed -i "s/hpctasks/$hpcthreads/g" slurm2.sh #user
 sed -i 's/other/$other/g' slurm2.sh #local.
 #write the GEA command to the slurm template
 sed -i \
-'s%command%bash getprev.sh -g \"\$GENE_FILE\" -c \"\$MIN_COVERAGE\" -i \"\$MIN_IDENTITY\" -o \"\$OUTPUT_FILE\" -H \"\$MODE\" -O \"\$OVERWRITE\" -t \"\$TAXON_FILE\" -d \"\$DOWNLOAD_FILE\" --force-custom-download \"\$FORCE_REBUILD\" -p T%g' \
+'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" -p T%g' \
 slurm2.sh
 #write the needed variables to the slurm template
 #the last variable tells EGP that ${"hpc"} = T
 #so that this entire while loop will be skipped
 #by the EGP resubmission
 sed -i \
-"s%vars%OVERWRITE='\$OVERWRITE'; GENE_FILE='\$GENE_FILE'; MIN_COVERAGE='\$MIN_COVERAGE'; MIN_IDENTITY='\$MIN_IDENTITY'; OUTPUT_FILE='\$OUTPUT_FILE'; MODE='\$MODE'; TAXON_FILE='\$TAXON_FILE'; DOWNLOAD_FILE='\$DOWNLOAD_FILE'; FORCE_REBUILD='\$FORCE_REBUILD'%g" \
+"s%vars%OVERWRITE='$OVERWRITE'; GENE_FILE='$GENE_FILE'; MIN_COVERAGE='$MIN_COVERAGE'; MIN_IDENTITY='$MIN_IDENTITY'; OUTPUT_FILE='$OUTPUT_FILE'; MODE='$MODE'; TAXON_FILE='$TAXON_FILE'; DOWNLOAD_FILE='$DOWNLOAD_FILE'; FORCE_REBUILD='$FORCE_REBUILD'%g" \
 slurm2.sh
 
 #make sure the user provided account is written to the template
@@ -244,7 +241,7 @@ CUSTOM_PANEL_CHECKPOINT="$GENOME_DIR/.custom_download_complete"
 mkdir -p "$GENOME_DIR" "$BLAST_DB_DIR"
 > "$FAILED_FLAG"
 
-if [[ -f "$CUSTOM_PANEL_CHECKPOINT" && "${FORCE_REBUILD:-false}" !=true ]]; then
+if [[ -f "$CUSTOM_PANEL_CHECKPOINT" && "${FORCE_REBUILD:-false}" != "true" ]]; then
 echo "Custom panel database already exists. Skipping rebuild."
 else
 max_parallel_genus=6
@@ -268,7 +265,7 @@ echo "Downloading all serotypes under '$taxon'."
 if ! get_salmonella_serotype_list "$GENOME_DIR"; then echo "Failed to get serotype list" >> "$FAILED_FLAG"; exit 1; fi
 if ! download_salmonella_serotype "$GENOME_DIR"; then echo "Failed to download serotypes" >> "$FAILED_FLAG"; exit 1; fi
 
-elif [[ "$taxon" =~ ^Salmonella( enterica subsp\.?\ enterica serovar)? ([A-Z][a-zA-Z0-9_]+)$ ]]; then
+elif [[ $taxon =~ ^Salmonella( enterica subsp\.?\ enterica serovar)?\ ([A-Z][a-zA-Z0-9_]+)$ ]]; then
 serotype="${BASH_REMATCH[2]}"
 echo "Downloading Salmonella serotype: $serotype"
 echo "$serotype" > "$GENOME_DIR/temp_serotype_list.txt"
