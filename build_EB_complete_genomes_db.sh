@@ -26,7 +26,7 @@ TOTAL_CPUS=$(get_cpus)
 # ============================
 echo "Starting genus and species download in parallelization"
 printf "%s\n" "Escherichia" "Salmonella" "Shigella" "Klebsiella" "Enterobacter" "Cronobacter" "Citrobacter" > "$GENOME_DIR/genus_list.txt"
-max_parallel_genus=6
+max_parallel_genus=7
 max_parallel_species=4
 
 genus_job_pids=()
