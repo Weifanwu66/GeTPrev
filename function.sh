@@ -50,13 +50,11 @@ fi
 # Build a function to get all species names under each target genus
 function get_species_list() {
 local target_genus="$1"
-local output_dir="$2"
-mkdir -p "$output_dir"
-esearch -db taxonomy -query "${target_genus}[Subtree]" | efetch -format xml | xtract -pattern Taxon -element ScientificName | awk 'NF == 2 && $1 ~ /^[A-Z][a-z]+$/ && $2 ~ /^[a-z]+$/ {print $0}' | \
-while read -r SPECIES; do
-echo "$SPECIES" >> "$GENOME_DIR/species_list.txt"
-done
-echo "Saved all species names of $target_genus in species_list.txt"
+local output_file="$2"
+mkdir -p "$(dirname "$output_file")"
+esearch -db taxonomy -query "${target_genus}[Subtree]" | efetch -format xml | xtract -pattern Taxon -element ScientificName | \
+awk 'NF == 2 && $1 ~ /^[A-Z][a-z]+$/ && $2 ~ /^[a-z]+$/ {print $0}' > "$output_file"
+echo "Saved all species names of $target_genus to $output_file"
 }
 
 # Build a function to download species-level genomes using ncbi-genome-download
@@ -148,8 +146,9 @@ esearch -db taxonomy -query "Salmonella enterica subsp. enterica[Subtree]" | efe
 echo "Saved all serotype names in salmonella_serotype_list.txt"
 # Remove all Salmonella enterica subsp. enterica serovar prefix
 sed -i 's/Salmonella enterica subsp. enterica serovar //g' "${output_dir}/salmonella_serotype_list.txt"
-# Delete taxids that are already stored in all_monophasic_Typhimurium_taxids.txt
-awk 'NR==FNR {monophasic[$0]; next} !($0 in monophasic)' "$MONOPHASIC_TYPHIMURIUM_LIST" "$GENOME_DIR/salmonella_serotype_taxids.txt" > tmp && mv tmp "${output_dir}/salmonella_serotype_taxids.txt"
+# Delete known monophasic names by name match that are already stored in all_monophasic_Typhimurium_taxids.txt
+grep -vFf "$MONOPHASIC_TYPHIMURIUM_LIST" "${output_dir}/salmonella_serotype_list.txt" > tmp && \
+mv tmp "${output_dir}/salmonella_serotype_list.txt"
 } 
 
 function download_salmonella_serotype() {
@@ -157,7 +156,7 @@ local output_dir="$1"
 local total_cpus=$(get_cpus)
 local max_parallel_serotypes=$(( total_cpus / 4 ))
 (( max_parallel_serotypes < 1 )) && max_parallel_serotypes=1
-(( max_parallel_serotypes > 6 )) && max_parallel_serotypes=6
+(( max_parallel_serotypes > 10 )) && max_parallel_serotypes=10
 echo "Downloading Salmonella enterica subsp. enterica serotype complete genomes"
 local monophasic_dir="$GENOME_DIR/Salmonella/Salmonella_enterica/enterica/monophasic_Typhimurium"
 mkdir -p "$monophasic_dir"
