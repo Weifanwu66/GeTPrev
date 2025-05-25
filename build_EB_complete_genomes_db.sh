@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash 
 #SBATCH --job-name=build_EB_complete_genomes_db
 #SBATCH --output=slurm_build_EB_db_%j.out
 #SBATCH --error=slurm_build_EB_db_%j.err
@@ -77,10 +77,20 @@ while read -r GENUS; do
     wait "${genus_job_pids[@]}"
     genus_job_pids=()
   fi
+
 done < "$GENOME_DIR/genus_list.txt"
 
 # Wait for any remaining genus jobs
-wait "${genus_job_pids[@]}"
+if (( ${#genus_job_pids[@]} > 0 )); then
+  echo "[INFO] Waiting on remaining genus jobs: ${genus_job_pids[*]}"
+  for pid in "${genus_job_pids[@]}"; do
+    if ! wait "$pid"; then
+      echo "[ERROR] Genus job with PID $pid failed." >> "$FAILED_FLAG"
+    fi
+  done
+fi
+
+echo "[INFO] All genus-level jobs completed."
 cat "$GENOME_DIR"/species_list_*.txt | sort | uniq > "$GENOME_DIR/species_list.txt"
 rm -f "$GENOME_DIR"/species_list_*.txt "$GENOME_DIR/genus_list.txt"
 # ============================
