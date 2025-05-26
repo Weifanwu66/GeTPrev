@@ -42,13 +42,10 @@ max_parallel_serotypes=$(( MAX_PARALLEL_JOBS / 3 ))
 # ============================
 (
   echo "Starting isolated Salmonella processing"
-  SALMONELLA_DIR="$GENOME_DIR/Salmonella"
-  mkdir -p "$SALMONELLA_DIR"
-
-  if ! download_single_genus "Salmonella" "$SALMONELLA_DIR"; then
+  if ! download_single_genus "Salmonella" "$GENOME_DIR"; then
     echo "Failed to download genus: Salmonella" >> "$FAILED_FLAG"; exit 1
   fi
-
+  SALMONELLA_DIR="$GENOME_DIR/Salmonella"
   SALMONELLA_SPECIES_LIST="$SALMONELLA_DIR/species_list.txt"
   if ! get_species_list "Salmonella" "$SALMONELLA_SPECIES_LIST"; then
     echo "Failed to get species list for: Salmonella" >> "$FAILED_FLAG"; exit 1
@@ -62,7 +59,7 @@ max_parallel_serotypes=$(( MAX_PARALLEL_JOBS / 3 ))
     [[ -z "$species" ]] && continue
     (
       echo "Downloading Salmonella species: $species"
-      if ! download_species "$species" "$SALMONELLA_DIR"; then
+      if ! download_species "$species" "$GENOME_DIR"; then
         echo "Failed to download $species under Salmonella" >> "$FAILED_FLAG"
       fi
     ) &
@@ -77,7 +74,7 @@ max_parallel_serotypes=$(( MAX_PARALLEL_JOBS / 3 ))
   if ! get_salmonella_subsp_list "$SALMONELLA_DIR"; then
     echo "Failed to get Salmonella subspecies list" >> "$FAILED_FLAG"; exit 1
   fi
-  if ! download_salmonella_subsp "$SALMONELLA_DIR"; then
+  if ! download_salmonella_subsp "$GENOME_DIR"; then
     echo "Failed to download Salmonella subspecies" >> "$FAILED_FLAG"; exit 1
   fi
 
@@ -90,7 +87,7 @@ max_parallel_serotypes=$(( MAX_PARALLEL_JOBS / 3 ))
     [[ -z "$serotype" ]] && continue
     (
       echo "Downloading Salmonella serotype: $serotype"
-      if ! download_salmonella_serotype "$SALMONELLA_DIR" "$serotype"; then
+      if ! download_salmonella_serotype "$GENOME_DIR" "$serotype"; then
         echo "Failed to download serotype: $serotype" >> "$FAILED_FLAG"
       fi
     ) &
@@ -118,13 +115,10 @@ genus_pids=()
 for GENUS in "${GENUS_LIST[@]}"; do
   (
     echo "Starting $GENUS"
-    GENUS_DIR="$GENOME_DIR/$GENUS"
-    mkdir -p "$GENUS_DIR"
-
-    if ! download_single_genus "$GENUS" "$GENUS_DIR"; then
+    if ! download_single_genus "$GENUS" "$GENOME_DIR"; then
       echo "Failed to download genus: $GENUS" >> "$FAILED_FLAG"; exit 1
     fi
-
+    GENUS_DIR="$GENOME_DIR/$GENUS"
     SPECIES_LIST_FILE="$GENUS_DIR/species_list.txt"
     if ! get_species_list "$GENUS" "$SPECIES_LIST_FILE"; then
       echo "Failed to get species list for: $GENUS" >> "$FAILED_FLAG"; exit 1
@@ -139,7 +133,7 @@ for GENUS in "${GENUS_LIST[@]}"; do
       [[ -z "$species" ]] && continue
       (
         echo "$GENUS: Downloading $species"
-        if ! download_species "$species" "$GENUS_DIR"; then
+        if ! download_species "$species" "$GENOME_DIR"; then
           echo "Failed to download $species under $GENUS" >> "$FAILED_FLAG"
         fi
       ) &
