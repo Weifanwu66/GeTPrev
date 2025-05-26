@@ -374,6 +374,10 @@ if [[ "$query" == "Salmonella enterica subsp. enterica serovar monophasic Typhim
 while read -r actual_name; do
 accessions+=$(ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $actual_name" --assembly-level contig --section genbank --dry-run | tail -n +2 | awk -F '/' '{print $NF}' | awk '{print $1}')
 done < "$MONOPHASIC_TYPHIMURIUM_LIST"
+elif [[ "$query" == "Salmonella enterica subsp. enterica serovar Typhimurium" ]]; then
+while read -r actual_name; do
+accessions+=$(ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $actual_name" --assembly-level contig --section genbank --dry-run | tail -n +2 | awk -F '/' '{print $NF}' | awk '{print $1}')
+done < "$TYPHIMURIUM_LIST"
 else
 accessions=$(ncbi-genome-download bacteria --genera "$query" --assembly-level contig --section genbank --dry-run | tail -n +2 | awk -F '/' '{print $NF}' | awk '{print $1}')
 fi
