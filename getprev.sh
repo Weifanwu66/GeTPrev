@@ -247,7 +247,7 @@ else
 TOTAL_CPUS=$(get_cpus)
 MAX_PARALLEL_JOBS=$(( TOTAL_CPUS * 2 / 3 ))
 while IFS= read -r raw_line || [ -n "$raw_line" ]; do
-taxon=$(echo "$raw_line" | tr -d ' \r')
+taxon=$(echo "$raw_line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '\r')
 [[ -z "$taxon" ]] && continue
 (
 SAL_DIR="$GENOME_DIR/Salmonella"
