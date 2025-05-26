@@ -14,6 +14,8 @@ GENOME_DIR="$DATABASE_DIR/complete_genomes"
 BLAST_DB_DIR="$DATABASE_DIR/complete_blast_db"
 FAILED_FLAG="$WORKDIR/build_EB_db_failed.flag"
 MONOPHASIC_TYPHIMURIUM_LIST="$DATABASE_DIR/monophasic_Typhimurium_list.txt"
+SEROTYPE_LIST_FILE="$GENOME_DIR/Salmonella/salmonella_serotype_list.txt"
+SUBSPECIES_LIST_FILE="$GENOME_DIR/Salmonella/salmonella_subspecies_list.txt"
 export FORCE_UPDATE="true"
 
 mkdir -p "$GENOME_DIR"
@@ -43,10 +45,8 @@ SALMONELLA_SPECIES_LIST="$SALMONELLA_DIR/species_list.txt"
 if ! get_species_list "Salmonella" "$SALMONELLA_SPECIES_LIST"; then
 echo "Failed to get species list for Salmonella" >> "$FAILED_FLAG"; exit 1
 fi
-
 sort "$SALMONELLA_SPECIES_LIST" | uniq > "${SALMONELLA_SPECIES_LIST}.dedup"
 mv "${SALMONELLA_SPECIES_LIST}.dedup" "$SALMONELLA_SPECIES_LIST"
-
 species_pids=()
 while IFS= read -r species; do
 [[ -z "$species" ]] && continue
@@ -63,42 +63,24 @@ species_pids=()
 fi
 done < "$SALMONELLA_SPECIES_LIST"
 wait "${species_pids[@]}"
-
-if ! get_salmonella_subsp_list "$SALMONELLA_DIR"; then
+if ! get_salmonella_subsp_list "$SUBSPECIES_LIST_FILE"; then
 echo "Failed to get Salmonella subspecies list" >> "$FAILED_FLAG"; exit 1
 fi
-if ! download_salmonella_subsp "$GENOME_DIR"; then
+if ! download_salmonella_subsp "$SUBSPECIES_LIST_FILE"; then
 echo "Failed to download Salmonella subspecies" >> "$FAILED_FLAG"; exit 1
 fi
-
-if ! get_salmonella_serotype_list "$SALMONELLA_DIR"; then
+if ! get_salmonella_serotype_list "$SEROTYPE_LIST_FILE"; then
 echo "Failed to get Salmonella serotype list" >> "$FAILED_FLAG"; exit 1
 fi
-
-serotype_pids=()
-while IFS= read -r serotype; do
-[[ -z "$serotype" ]] && continue
-(
-echo "Downloading Salmonella serotype: $serotype"
-if ! download_salmonella_serotype "$GENOME_DIR" "$serotype"; then
-echo "Failed to download serotype: $serotype" >> "$FAILED_FLAG"
+if ! download_salmonella_serotype "$SEROTYPE_LIST_FILE"; then
+echo "Failed to download Salmonella serotypes" >> "$FAILED_FLAG"; exit 1
 fi
-) &
-serotype_pids+=($!)
-if (( ${#serotype_pids[@]} >= max_parallel_serotypes )); then
-wait "${serotype_pids[@]}"
-serotype_pids=()
-fi
-done < "$SALMONELLA_DIR/serotype_list.txt"
-wait "${serotype_pids[@]}"
-
 move_unclassified_genomes "$SALMONELLA_DIR"
 ) &
 SALMONELLA_PID=$!
 
 GENUS_LIST=("Escherichia" "Shigella" "Klebsiella" "Enterobacter" "Cronobacter" "Citrobacter")
 genus_pids=()
-
 for GENUS in "${GENUS_LIST[@]}"; do
 (
 echo "Processing $GENUS"
@@ -112,7 +94,7 @@ echo "Failed to get species list for $GENUS" >> "$FAILED_FLAG"; exit 1
 fi
 sort "$SPECIES_LIST_FILE" | uniq > "${SPECIES_LIST_FILE}.dedup"
 mv "${SPECIES_LIST_FILE}.dedup" "$SPECIES_LIST_FILE"
-
+echo "$GENUS: downloading species"
 species_pids=()
 while IFS= read -r species; do
 [[ -z "$species" ]] && continue
@@ -129,19 +111,20 @@ species_pids=()
 fi
 done < "$SPECIES_LIST_FILE"
 wait "${species_pids[@]}"
-
 echo "$GENUS: organizing unclassified genomes"
 move_unclassified_genomes "$GENUS_DIR"
 ) &
 genus_pids+=($!)
 done
 
+if (( ${#genus_pids[@]} > 0 )); then
 echo "Waiting on remaining genus jobs"
 for pid in "${genus_pids[@]}"; do
 if ! wait "$pid"; then
 echo "Genus job with PID $pid failed." >> "$FAILED_FLAG"
 fi
 done
+fi
 
 echo "Waiting on Salmonella job"
 if ! wait "$SALMONELLA_PID"; then
@@ -152,5 +135,11 @@ if [[ -s "$FAILED_FLAG" ]]; then
 echo "One or more genome downloads failed. See $FAILED_FLAG for details."
 exit 1
 fi
+
+echo "Building BLAST databases"
+build_blastdb "$GENOME_DIR" "$BLAST_DB_DIR"
+
+echo "Compressing all *_genomic.fna and *_all_genomes.fna"
+find "$GENOME_DIR" -type f \( -name "*_genomic.fna" -o -name "*_all_genomes.fna" \) -exec gzip -f {} \;
 
 echo "All genome downloads, database builds, and compression steps completed."
