@@ -198,6 +198,7 @@ wait
 
 function move_unclassified_genomes() {
 local output_dir="$1"
+echo "Scanning for aggregated directories under: $output_dir"
 find "$output_dir" -type d -name "aggregated" | while read -r aggregated_dir; do
 local level_dir
 level_dir=$(dirname "$aggregated_dir")
@@ -206,21 +207,22 @@ local unclassified_dir="${level_dir}/unclassified"
 mkdir -p "$unclassified_dir"
 declare -A classified_files
 while IFS= read -r -d '' genome_path; do
-genome_basename=$(basename "$genome_path")
+genome_basename=$(basename "$genome_path" | tr -d '\r\n')
 classified_files["$genome_basename"]=1
 done < <(find "$level_dir" -mindepth 1 -maxdepth 1 -type d \
 ! \( -name "aggregated" -o -name "unclassified" \) \
 -exec find {} -type f -name "*_genomic.fna" -print0 \;)
 while IFS= read -r -d '' genome_file; do
-genome_basename=$(basename "$genome_file")
+genome_basename=$(basename "$genome_file" | tr -d '\r\n')
 if [[ -z "${classified_files["$genome_basename"]}" ]]; then
-echo "Moving unclassified genome: $genome_basename"
+echo "→ Moving unclassified genome: $genome_basename"
 mv -f "$genome_file" "$unclassified_dir/" || echo "Error: Failed to move $genome_file"
 fi
 done < <(find "$aggregated_dir" -type f -name "*_genomic.fna" -print0)
 rm -rf "$aggregated_dir"
+echo "Removed: $aggregated_dir"
 done
-echo "Organizing genomes into unclassified directories and removing aggregated directories"
+echo "Done organizing unclassified genomes in: $output_dir"
 }
 
 function create_blastdb() {
