@@ -68,11 +68,7 @@ download_single_species() {
 local species="$1"
 local genus=$(echo "$species" | awk '{print $1}')
 local clean_species=$(echo "$species" | sed 's/ /_/g')
-if [[ "$genus" == "$clean_species" ]]; then
-species_dir="${output_dir}/${genus}"
-else
 species_dir="${output_dir}/${genus}/${clean_species}"
-fi
 [[ "$species" == "Salmonella enterica" ]] && species_dir="$species_dir/aggregated"
 mkdir -p "$species_dir"
 if [[ -n "$(find "$species_dir" -maxdepth 1 -type f -name "*_genomic.fna" 2>/dev/null)" ]]; then
@@ -202,12 +198,13 @@ wait
 
 function move_unclassified_genomes() {
 local output_dir="$1"
-find "$output_dir" -mindepth 1 -type d | while read -r level_dir; do
-aggregated_dir="${level_dir}/aggregated"
-unclassified_dir="${level_dir}/unclassified"
+find "$output_dir" -type d -name "aggregated" | while read -r aggregated_dir; do
+local level_dir
+level_dir=$(dirname "$aggregated_dir")
+local unclassified_dir="${level_dir}/unclassified"
 [[ ! -d "$aggregated_dir" ]] && continue
 mkdir -p "$unclassified_dir"
-declare -A classified_files=()
+declare -A classified_files
 while IFS= read -r -d '' genome_path; do
 genome_basename=$(basename "$genome_path")
 classified_files["$genome_basename"]=1
