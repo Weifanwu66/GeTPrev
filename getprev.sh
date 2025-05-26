@@ -275,7 +275,7 @@ get_salmonella_serotype_list "$SEROTYPE_LIST_FILE"
 download_salmonella_serotype "$SEROTYPE_LIST_FILE"
 move_unclassified_genomes "$SAL_DIR"
 
-elif [[ "$taxon" =~ ^Salmonella( enterica subsp\.? enterica serovar)? ([A-Z][a-zA-Z0-9_]+)$ ]]; then
+elif [[ "$taxon" =~ ^Salmonella( enterica subsp\.?\ enterica serovar)?\ ([A-Z][a-zA-Z0-9_]+)$ ]]; then
 serotype="${BASH_REMATCH[2]}"
 echo "Downloading serotype: $serotype"
 echo "$serotype" > "$GENOME_DIR/temp_serotype_list.txt"
