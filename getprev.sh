@@ -68,7 +68,6 @@ while [[ "$#" -gt 0 ]]; do
         -h|--help) usage; exit 0 ;;
         *) echo "Invalid option: $1"; usage; exit 1 ;;
     esac
-    shift
 done
 
 #adapted from GEAbash_v1.0.0; seems to be working as expected
