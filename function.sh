@@ -102,16 +102,17 @@ echo "Downloaded and organized species genomes"
 
 # Build a function to get all subspecies names under Salmonella enterica
 function get_salmonella_subsp_list() {
-local output_dir="$1"
+local output_file="$1"
+local output_dir
+output_dir=$(dirname "$output_file")
 mkdir -p "$output_dir"
 esearch -db taxonomy -query "Salmonella enterica[Subtree]" | efetch -format xml | \
-xtract -pattern Taxon -element ScientificName | grep -v -E "serovar|str\." | sort -u | grep -v "Salmonella enterica$" | sed 's/Salmonella enterica subsp. //' > "${output_dir}/salmonella_subspecies_list.txt"
-echo "Saved all Salmonella enterica subsp. names in salmonella_subspecies_list.txt"
+xtract -pattern Taxon -element ScientificName | grep -v -E "serovar|str\." | sort -u | grep -v "Salmonella enterica$" | sed 's/Salmonella enterica subsp. //' > "$output_file"
+echo "Saved all Salmonella enterica subsp. names in $output_file"
 }
 
 function download_salmonella_subsp() {
-local output_dir="$1"
-local subspecies_list="${output_dir}/salmonella_subspecies_list.txt"
+local subspecies_list_file="$1"
 echo "Downloading Salmonella enterica subspecies"
 while read -r subspecies; do
 local subspecies_dir="$GENOME_DIR/Salmonella/Salmonella_enterica/$subspecies"
@@ -131,24 +132,26 @@ if [[ -z "$(find "$subspecies_dir" -maxdepth 1 -type f -name "*_genomic.fna" 2>/
 echo "No genomes found for $subspecies. Remove empty directory."
 rm -rf "$subspecies_dir"
 fi
-done < "$subspecies_list"
+done < "$subspecies_list_file"
 }
 
 # Build a function to download Salmonella serotype
 function get_salmonella_serotype_list() {
-local output_dir="$1"
+local output_file="$1"
+local output_dir
+output_dir=$(dirname "$output_file")
 mkdir -p "$output_dir"
-esearch -db taxonomy -query "Salmonella enterica subsp. enterica[Subtree]" | efetch -format xml | xtract -pattern Taxon -element ScientificName | grep -v -E "str\.|var\." | sort -u | grep -v "Salmonella enterica subsp. enterica$" > "${output_dir}/salmonella_serotype_list.txt"
-echo "Saved all serotype names in salmonella_serotype_list.txt"
+esearch -db taxonomy -query "Salmonella enterica subsp. enterica[Subtree]" | efetch -format xml | xtract -pattern Taxon -element ScientificName | grep -v -E "str\.|var\." | sort -u | grep -v "Salmonella enterica subsp. enterica$" > "$output_file"
+echo "Saved all serotype names in $output_file"
 # Remove all Salmonella enterica subsp. enterica serovar prefix
-sed -i 's/Salmonella enterica subsp. enterica serovar //g' "${output_dir}/salmonella_serotype_list.txt"
+sed -i 's/Salmonella enterica subsp. enterica serovar //g' "$output_file"
 # Delete known monophasic names by name match that are already stored in all_monophasic_Typhimurium_taxids.txt
-grep -vFf "$MONOPHASIC_TYPHIMURIUM_LIST" "${output_dir}/salmonella_serotype_list.txt" > tmp && \
-mv tmp "${output_dir}/salmonella_serotype_list.txt"
+grep -vFf "$MONOPHASIC_TYPHIMURIUM_LIST" "$output_file" > tmp && \
+mv tmp "$output_file"
 } 
 
 function download_salmonella_serotype() {
-local output_dir="$1"
+local serotype_list_file="$1"
 local total_cpus=$(get_cpus)
 local max_parallel_serotypes=$(( total_cpus / 4 ))
 (( max_parallel_serotypes < 1 )) && max_parallel_serotypes=1
@@ -179,7 +182,7 @@ while read -r serotype; do
 [[ -z "$serotype" ]] && continue
 (download_single_serotype "$serotype" ) &
 while (( $(jobs -r | wc -l) >= max_parallel_serotypes )); do sleep 1; done
-done < "${output_dir}/salmonella_serotype_list.txt"
+done < "$serotype_list_file"
 wait
 echo "Downloading all monophasic Typhimurium genomes"
 while read -r monophasic; do

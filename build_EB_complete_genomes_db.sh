@@ -93,8 +93,6 @@ done < "$SALMONELLA_DIR/serotype_list.txt"
 wait "${serotype_pids[@]}"
 
 move_unclassified_genomes "$SALMONELLA_DIR"
-build_blastdb "$SALMONELLA_DIR" "$BLAST_DB_DIR"
-find "$SALMONELLA_DIR" -type f -name "*_genomic.fna" -exec gzip -f {} \;
 ) &
 SALMONELLA_PID=$!
 
@@ -112,11 +110,9 @@ SPECIES_LIST_FILE="$GENUS_DIR/species_list.txt"
 if ! get_species_list "$GENUS" "$SPECIES_LIST_FILE"; then
 echo "Failed to get species list for $GENUS" >> "$FAILED_FLAG"; exit 1
 fi
-
 sort "$SPECIES_LIST_FILE" | uniq > "${SPECIES_LIST_FILE}.dedup"
 mv "${SPECIES_LIST_FILE}.dedup" "$SPECIES_LIST_FILE"
 
-echo "$GENUS: downloading species"
 species_pids=()
 while IFS= read -r species; do
 [[ -z "$species" ]] && continue
@@ -136,25 +132,16 @@ wait "${species_pids[@]}"
 
 echo "$GENUS: organizing unclassified genomes"
 move_unclassified_genomes "$GENUS_DIR"
-
-echo "$GENUS: building BLAST db"
-build_blastdb "$GENUS_DIR" "$BLAST_DB_DIR"
-
-echo "$GENUS: compressing fasta files"
-find "$GENUS_DIR" -type f -name "*_genomic.fna" -exec gzip -f {} \;
 ) &
 genus_pids+=($!)
-
 done
 
-if (( ${#genus_pids[@]} > 0 )); then
 echo "Waiting on remaining genus jobs"
 for pid in "${genus_pids[@]}"; do
 if ! wait "$pid"; then
 echo "Genus job with PID $pid failed." >> "$FAILED_FLAG"
 fi
 done
-fi
 
 echo "Waiting on Salmonella job"
 if ! wait "$SALMONELLA_PID"; then
