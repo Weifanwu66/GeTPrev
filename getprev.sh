@@ -244,7 +244,7 @@ mkdir -p "$BLAST_DB_DIR"
 > "$FAILED_FLAG"
 if [[ -f "$CUSTOM_PANEL_CHECKPOINT" && "${FORCE_REBUILD:-false}" != "true" ]]; then
 echo "Custom panel database already downloaded. Skipping rebuild."
-els
+else
 TOTAL_CPUS=$(get_cpus)
 MAX_PARALLEL_JOBS=$(( TOTAL_CPUS * 2 / 3 ))
 while IFS= read -r raw_line || [ -n "$raw_line" ]; do
@@ -255,100 +255,54 @@ SAL_DIR="$GENOME_DIR/Salmonella"
 [[ -d "$SAL_DIR" ]] || mkdir -p "$SAL_DIR"
 if [[ "$taxon" == "Salmonella" ]]; then
 echo "$taxon detected. Downloading all species, subspecies, and serotypes."
-if ! download_single_genus "$taxon" "$GENOME_DIR"; then
-echo "Failed to download genus: $taxon" >> "$FAILED_FLAG"; exit 1
-fi
-if ! get_salmonella_subsp_list "$SAL_DIR"; then
-echo "Failed to get Salmonella subspecies list" >> "$FAILED_FLAG"; exit 1
-fi
-if ! download_salmonella_subsp "$GENOME_DIR"; then
-echo "Failed to download Salmonella subspecies" >> "$FAILED_FLAG"; exit 1
-fi
-if ! get_salmonella_serotype_list "$SAL_DIR"; then
-echo "Failed to get Salmonella serotype list" >> "$FAILED_FLAG"; exit 1
-fi
-if ! download_salmonella_serotype "$GENOME_DIR"; then
-echo "Failed to download Salmonella serotypes" >> "$FAILED_FLAG"; exit 1
-fi
+download_single_genus "$taxon" "$GENOME_DIR"
+get_salmonella_subsp_list "$SUBSPECIES_LIST_FILE"
+download_salmonella_subsp "$SUBSPECIES_LIST_FILE"
+get_salmonella_serotype_list "$SEROTYPE_LIST_FILE"
+download_salmonella_serotype "$SEROTYPE_LIST_FILE"
 move_unclassified_genomes "$SAL_DIR"
-build_blastdb "$SAL_DIR" "$BLAST_DB_DIR"
-find "$SAL_DIR" -type f -name "*_genomic.fna" -exec gzip -f {} \;
 
 elif [[ "$taxon" == "Salmonella enterica" ]]; then
 echo "$taxon detected. Downloading all subspecies and serotypes under enterica."
-SAL_DIR="$GENOME_DIR/Salmonella"
-mkdir -p "$SAL_DIR"
-if ! get_salmonella_subsp_list "$SAL_DIR"; then
-echo "Failed to get Salmonella subspecies list" >> "$FAILED_FLAG"; exit 1
-fi
-if ! download_salmonella_subsp "$GENOME_DIR"; then
-echo "Failed to download Salmonella subspecies" >> "$FAILED_FLAG"; exit 1
-fi
-if ! get_salmonella_serotype_list "$SAL_DIR"; then
-echo "Failed to get Salmonella serotype list" >> "$FAILED_FLAG"; exit 1
-fi
-if ! download_salmonella_serotype "$GENOME_DIR"; then
-echo "Failed to download Salmonella serotypes" >> "$FAILED_FLAG"; exit 1
-fi
+get_salmonella_subsp_list "$SUBSPECIES_LIST_FILE"
+download_salmonella_subsp "$SUBSPECIES_LIST_FILE"
+get_salmonella_serotype_list "$SEROTYPE_LIST_FILE"
+download_salmonella_serotype "$SEROTYPE_LIST_FILE"
 move_unclassified_genomes "$SAL_DIR"
-build_blastdb "$SAL_DIR" "$BLAST_DB_DIR"
-find "$SAL_DIR" -type f -name "*_genomic.fna" -exec gzip -f {} \;
 
 elif [[ "$taxon" == "Salmonella enterica subsp. enterica" ]]; then
 echo "$taxon detected. Downloading all serotypes only."
-SAL_DIR="$GENOME_DIR/Salmonella"
-mkdir -p "$SAL_DIR"
-if ! get_salmonella_serotype_list "$SAL_DIR"; then
-echo "Failed to get Salmonella serotype list" >> "$FAILED_FLAG"; exit 1
-fi
-if ! download_salmonella_serotype "$GENOME_DIR"; then
-echo "Failed to download Salmonella serotypes" >> "$FAILED_FLAG"; exit 1
-fi
+get_salmonella_serotype_list "$SEROTYPE_LIST_FILE"
+download_salmonella_serotype "$SEROTYPE_LIST_FILE"
 move_unclassified_genomes "$SAL_DIR"
-build_blastdb "$SAL_DIR" "$BLAST_DB_DIR"
-find "$SAL_DIR" -type f -name "*_genomic.fna" -exec gzip -f {} \;
 
 elif [[ "$taxon" =~ ^Salmonella( enterica subsp\.? enterica serovar)? ([A-Z][a-zA-Z0-9_]+)$ ]]; then
 serotype="${BASH_REMATCH[2]}"
 echo "Downloading serotype: $serotype"
 echo "$serotype" > "$GENOME_DIR/temp_serotype_list.txt"
-if ! download_salmonella_serotype "$GENOME_DIR" "$GENOME_DIR/temp_serotype_list.txt"; then
-echo "Failed to download serotype: $serotype" >> "$FAILED_FLAG"
-fi
+download_salmonella_serotype "$GENOME_DIR/temp_serotype_list.txt"
 rm -f "$GENOME_DIR/temp_serotype_list.txt"
-SAL_DIR="$GENOME_DIR/Salmonella"
 move_unclassified_genomes "$SAL_DIR"
-build_blastdb "$SAL_DIR" "$BLAST_DB_DIR"
-find "$SAL_DIR" -type f -name "*_genomic.fna" -exec gzip -f {} \;
 
 elif [[ "$taxon" =~ ^[A-Z][a-z]+\ [a-z]+$ ]]; then
 echo "Downloading species: $taxon"
-if ! download_species "$taxon" "$GENOME_DIR"; then
-echo "Failed to download species: $taxon" >> "$FAILED_FLAG"
-fi
-SPECIES_DIR="$GENOME_DIR/$(echo "$taxon" | cut -d' ' -f1)"
-build_blastdb "$SPECIES_DIR" "$BLAST_DB_DIR"
-find "$SPECIES_DIR" -type f -name "*_genomic.fna" -exec gzip -f {} \;
+download_species "$taxon" "$GENOME_DIR"
+GENUS_DIR="$GENOME_DIR/$(echo "$taxon" | cut -d' ' -f1)"
+move_unclassified_genomes "$GENUS_DIR"
 
 elif [[ "$taxon" =~ ^[A-Z][a-z]+$ ]]; then
 echo "Processing genus: $taxon"
 GENUS_DIR="$GENOME_DIR/$taxon"
 mkdir -p "$GENUS_DIR"
-if ! download_single_genus "$taxon" "$GENOME_DIR"; then
-echo "Failed to download genus: $taxon" >> "$FAILED_FLAG"; exit 1
-fi
+download_single_genus "$taxon" "$GENOME_DIR"
 species_list_file="$GENUS_DIR/species_list.txt"
-if ! get_species_list "$taxon" "$species_list_file"; then
-echo "Failed to get species list for genus: $taxon" >> "$FAILED_FLAG"; exit 1
-fi
+get_species_list "$taxon" "$species_list_file"
 species_pids=()
 while IFS= read -r species_name; do
 [[ -z "$species_name" ]] && continue
 (
 echo "$taxon: downloading $species_name"
-if ! download_species "$species_name" "$GENOME_DIR"; then
-echo "Failed to download species: $species_name under $taxon" >> "$FAILED_FLAG"
-fi
+download_species "$species_name" "$GENOME_DIR"
 ) &
 species_pids+=($!)
 if (( ${#species_pids[@]} >= MAX_PARALLEL_JOBS )); then
@@ -358,23 +312,21 @@ fi
 done < "$species_list_file"
 wait "${species_pids[@]}"
 move_unclassified_genomes "$GENUS_DIR"
-build_blastdb "$GENUS_DIR" "$BLAST_DB_DIR"
-find "$GENUS_DIR" -type f -name "*_genomic.fna" -exec gzip -f {} \;
-
 else
 echo "Unrecognized format or unsupported taxon: $taxon" >> "$FAILED_FLAG"
 fi
 ) &
-while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do
-sleep 1
-done
+while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do sleep 1; done
 done < "$DOWNLOAD_FILE"
 wait
+
 echo "Building BLAST databases for custom panel"
-if [[ -d "$GENOME_DIR" ]]; then
 move_unclassified_genomes "$GENOME_DIR"
-fi
 build_blastdb "$GENOME_DIR" "$BLAST_DB_DIR"
+
+echo "Compressing all *_genomic.fna and *_all_genomes.fna"
+find "$GENOME_DIR" -type f \( -name "*_genomic.fna" -o -name "*_all_genomes.fna" \) -exec gzip -f {} \;
+
 if [[ -s "$FAILED_FLAG" ]]; then
 echo "Custom panel completed with some failures. See $FAILED_FLAG"
 else
