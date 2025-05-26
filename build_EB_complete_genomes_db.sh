@@ -145,10 +145,6 @@ find "$GENUS_DIR" -type f -name "*_genomic.fna" -exec gzip -f {} \;
 ) &
 genus_pids+=($!)
 
-if (( ${#genus_pids[@]} >= max_parallel_genus )); then
-wait "${genus_pids[@]}"
-genus_pids=()
-fi
 done
 
 if (( ${#genus_pids[@]} > 0 )); then
