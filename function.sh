@@ -295,14 +295,28 @@ local input="$1"
 local assembly_level="$2"
 local total_genomes=0
 local query="$(extract_taxon_info "$input")"
+if [[ "$assembly_level" == "complete" ]]; then
+local db_path="$BLAST_DB_DIR/$input"
+if [[ -f "${db_path}.nhr" || -f "${db_path}.00.nhr" ]]; then
+total_genomes=$(blastdbcmd -db "$db_path" -info | grep 'sequences;' | awk '{print $1}')
+else
+echo "No genomes found for $input" >&2
+total_genomes=0
+fi
+else
 if [[ "$query" == "Salmonella enterica subsp. enterica serovar monophasic Typhimurium" ]]; then
 while read -r actual_name; do
 count=$(( $(ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $actual_name" --assembly-level "$assembly_level" --section genbank --dry-run  | wc -l) - 1 ))
 ((total_genomes += count))
 done < "$MONOPHASIC_TYPHIMURIUM_LIST"
+elif [[ "$query" == "Salmonella enterica subsp. enterica serovar Typhimurium" ]]; then
+while read -r actual_name; do
+count=$(( $(ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $actual_name" --assembly-level "$assembly_level" --section >((total_genomes += count))
+done < "$TYPHIMURIUM_LIST"
 else
 total_genomes=$(( $(ncbi-genome-download bacteria --genera "$query" --assembly-level "$assembly_level" --section genbank --dry-run --verbose | wc -l) - 1 ))
 total_genomes=$(( total_genomes < 0 ? 0 : total_genomes ))
+fi
 fi
 echo "$total_genomes"
 }
