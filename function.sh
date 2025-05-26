@@ -1,5 +1,7 @@
 #!/bin/bash
 MONOPHASIC_TYPHIMURIUM_LIST="$(pwd)/database/monophasic_Typhimurium_list.txt"
+TYPHIMURIUM_LIST="$(pwd)/database/Typhimurium_list.txt"
+DUPLICATE_SEROTYPE_LIST="$(pwd)/database/duplicate_sal_serotypes.txt"
 ASSEMBLY_LEVEL="complete"
 # Get CPU count (SLURM-aware)
 function get_cpus() {
@@ -21,9 +23,9 @@ return
 fi
 mkdir -p "$genus_dir"
 echo "Downloading genus: $genus"
-ncbi-genome-download bacteria --genera "$genus" --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$genus_dir"
-find "$genus_dir/genbank" -type f -name "*_genomic.fna.gz" -exec sh -c 'gzip -d "$0" && mv "${0%.gz}" "'"$genus_dir"'"' {} \;
-rm -rf "$genus_dir/genbank"
+ncbi-genome-download bacteria --genera "$genus" \
+ --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$genus_dir" --verbose --flat-output
+find "$genus_dir" -type f -name "*_genomic.fna.gz" -exec gzip -d {} \;
 echo "Downloaded and organized genomes for $genus"
 }
 
@@ -76,12 +78,9 @@ echo "Genomes already exist for $species, skipping donwloading"
 return
 fi
 echo "Downloading genomes for $species"
-ncbi-genome-download bacteria --genera "$species" --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$species_dir" --verbose
-# Move genomic FASTA files to correct location
-if [[ -d "$species_dir/genbank" ]]; then
-find "$species_dir/genbank" -type f -name "*_genomic.fna.gz" -exec sh -c 'gzip -d "$0" && mv "${0%.gz}" "'"$species_dir"'"' {} \;
-rm -rf "$species_dir/genbank"
-fi
+ncbi-genome-download bacteria --genera "$species" \
+ --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$species_dir" --verbose --flat-output
+find "$species_dir" -type f -name "*_genomic.fna.gz" -exec gzip -d {} \;
 if [[ -z "$(find "$species_dir" -maxdepth 1 -type f -name "*_genomic.fna" 2>/dev/null)" ]]; then
 echo "No genomes found for $species. Remove empty directory."
 rm -rf "$species_dir"
@@ -123,11 +122,9 @@ echo "Genomes already exist for *Salmonella enterica* subsp. $subspecies"
 continue
 fi
 echo "Downloading genomes for Salmonella enterica subsp. $subspecies"
-ncbi-genome-download bacteria --genera "Salmonella enterica subsp. $subspecies" --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$subspecies_dir"
-if [[ -d "$subspecies_dir/genbank" ]]; then
-find "$subspecies_dir/genbank" -type f -name "*_genomic.fna.gz" -exec sh -c 'gzip -d "$0" && mv "${0%.gz}" "'"$subspecies_dir"'"' {} \;
-rm -rf "$subspecies_dir/genbank"
-fi
+ncbi-genome-download bacteria --genera "Salmonella enterica subsp. $subspecies" \
+ --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$subspecies_dir" --verbose --flat-output
+find "$subspecies_dir" -type f -name "*_genomic.fna.gz" -exec gzip -d {} \;
 if [[ -z "$(find "$subspecies_dir" -maxdepth 1 -type f -name "*_genomic.fna" 2>/dev/null)" ]]; then
 echo "No genomes found for $subspecies. Remove empty directory."
 rm -rf "$subspecies_dir"
@@ -145,8 +142,8 @@ esearch -db taxonomy -query "Salmonella enterica subsp. enterica[Subtree]" | efe
 echo "Saved all serotype names in $output_file"
 # Remove all Salmonella enterica subsp. enterica serovar prefix
 sed -i 's/Salmonella enterica subsp. enterica serovar //g' "$output_file"
-# Delete known monophasic names by name match that are already stored in all_monophasic_Typhimurium_taxids.txt
-grep -vFf "$MONOPHASIC_TYPHIMURIUM_LIST" "$output_file" > tmp && \
+# Delete known serotype names names by name match that are already stored in monophasic_Typhimurium_list.txt and Typhimurium_list.txt
+grep -vFf "$DUPLICATE_SEROTYPE_LIST" "$output_file" > tmp && \
 mv tmp "$output_file"
 } 
 
@@ -159,6 +156,8 @@ local max_parallel_serotypes=$(( total_cpus / 4 ))
 echo "Downloading Salmonella enterica subsp. enterica serotype complete genomes"
 local monophasic_dir="$GENOME_DIR/Salmonella/Salmonella_enterica/enterica/monophasic_Typhimurium"
 mkdir -p "$monophasic_dir"
+local typhimurium_dir="$GENOME_DIR/Salmonella/Salmonella_enterica/enterica/Typhimurium"
+mkdir -p "$typhimurium_dir"
 download_single_serotype() {
 local serotype="$1"
 local serotype_dir="${GENOME_DIR}/Salmonella/Salmonella_enterica/enterica/${serotype}"
@@ -168,13 +167,11 @@ echo "Genomes already exist for Salmonella enterica $serotype, skipping."
 return
 fi
 echo "Downloading genomes for Salmonella $serotype"
-ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $serotype" --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$serotype_dir" --verbose
-if [[ -d "$serotype_dir/genbank" ]]; then
-find "$serotype_dir/genbank" -type f -name "*_genomic.fna.gz" -exec sh -c 'gzip -d "$1" && mv "${1%.gz}" "'"$serotype_dir"'"' _ {} \;
-rm -rf "$serotype_dir/genbank"
-fi
+ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $serotype" \
+ --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$serotype_dir" --verbose --flat-output
+find "$serotype_dir" -type f -name "*_genomic.fna.gz" -exec gzip -d {} \;
 if [[ -z "$(find "$serotype_dir" -maxdepth 1 -type f -name "*_genomic.fna" 2>/dev/null)" ]]; then
-echo "No genomes found for $subspecies. Remove empty directory."
+echo "No genomes found for $serotype. Remove empty directory."
 rm -rf "$serotype_dir"
 fi
 }
@@ -187,16 +184,16 @@ wait
 echo "Downloading all monophasic Typhimurium genomes"
 while read -r monophasic; do
 [[ -z "$monophasic" ]] && continue
-(
-ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $monophasic" --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$monophasic_dir" --verbose
-if [[ -d "$monophasic_dir/genbank" ]]; then
-find "$monophasic_dir/genbank" -type f -name "*_genomic.fna.gz" -exec sh -c 'gzip -d "$1" && mv "${1%.gz}" "'"$monophasic_dir"'"' _ {} \;
-rm -rf "$monophasic_dir/genbank"
-fi
-) &
-while (( $(jons -r | wc -l) >= max_parallel_serotypes )); do sleep 1; done
+ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $monophasic" \
+ --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$monophasic_dir" --verbose --flat-output
+find "$monophasic_dir" -type f -name "*_genomic.fna.gz" -exec gzip -d {} \;
 done < "$MONOPHASIC_TYPHIMURIUM_LIST"
-wait
+echo "Downloading all monophasic Typhimurium genomes"
+while read -r typhimurium; do
+[[ -z "$typhimurium" ]] && continue
+ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $typhimurium" \                                                           --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$monophasic_dir" --verbose --flat-output
+find "$typhimurium_dir" -type f -name "*_genomic.fna.gz" -exec gzip -d {} \;
+done < "$TYPHIMURIUM_LIST"
 }
 
 function move_unclassified_genomes() {
