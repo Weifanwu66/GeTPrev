@@ -306,16 +306,19 @@ fi
 else
 if [[ "$query" == "Salmonella enterica subsp. enterica serovar monophasic Typhimurium" ]]; then
 while read -r actual_name; do
-count=$(( $(ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $actual_name" --assembly-level "$assembly_level" --section genbank --dry-run  | wc -l) - 1 ))
+genome_lines=$(ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $actual_name" --assembly-level "$assembly_level" --section genbank --dry-run | wc -l)
+count=$(( genome_lines - 1 ))
 ((total_genomes += count))
 done < "$MONOPHASIC_TYPHIMURIUM_LIST"
 elif [[ "$query" == "Salmonella enterica subsp. enterica serovar Typhimurium" ]]; then
 while read -r actual_name; do
-count=$(( $(ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $actual_name" --assembly-level "$assembly_level" --section genbank --dry-run | wc -l) -1 ))
+genome_lines=$(ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $actual_name" --assembly-level "$assembly_level" --section genbank --dry-run | wc -l)
+count=$(( genome_lines - 1 ))
 ((total_genomes += count))
 done < "$TYPHIMURIUM_LIST"
 else
-total_genomes=$(( $(ncbi-genome-download bacteria --genera "$query" --assembly-level "$assembly_level" --section genbank --dry-run --verbose | wc -l) - 1 ))
+genome_lines=$(ncbi-genome-download bacteria --genera "$query" --assembly-level "$assembly_level" --section genbank --dry-run --verbose | wc -l)
+total_genomes=$(( genome_lines - 1 ))
 total_genomes=$(( total_genomes < 0 ? 0 : total_genomes ))
 fi
 fi
