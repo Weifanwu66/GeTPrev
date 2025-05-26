@@ -5,7 +5,7 @@ DUPLICATE_SEROTYPE_LIST="$(pwd)/database/duplicate_sal_serotypes.txt"
 ASSEMBLY_LEVEL="complete"
 # Get CPU count (SLURM-aware)
 function get_cpus() {
-if [[ -n "${SLURM_CPUS_ON_NODES:-}" ]]; then
+if [[ -n "${SLURM_CPUS_ON_NODE:-}" ]]; then
 echo "$SLURM_CPUS_ON_NODE"
 else
 nproc
@@ -188,10 +188,11 @@ ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica sero
  --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$monophasic_dir" --verbose --flat-output
 find "$monophasic_dir" -type f -name "*_genomic.fna.gz" -exec gzip -d {} \;
 done < "$MONOPHASIC_TYPHIMURIUM_LIST"
-echo "Downloading all monophasic Typhimurium genomes"
+echo "Downloading all Typhimurium genomes"
 while read -r typhimurium; do
 [[ -z "$typhimurium" ]] && continue
-ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $typhimurium" \                                                           --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$monophasic_dir" --verbose --flat-output
+ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $typhimurium" \
+ --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$typhimurium_dir" --verbose --flat-output
 find "$typhimurium_dir" -type f -name "*_genomic.fna.gz" -exec gzip -d {} \;
 done < "$TYPHIMURIUM_LIST"
 }
