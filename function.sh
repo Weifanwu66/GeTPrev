@@ -208,14 +208,14 @@ local unclassified_dir="${level_dir}/unclassified"
 mkdir -p "$unclassified_dir"
 declare -A classified_files
 while IFS= read -r -d '' genome_path; do
-genome_basename=$(basename "$genome_path" | tr -d '\r\n')
+genome_basename=$(basename "$genome_path" | tr -d '\r\n ')
 classified_files["$genome_basename"]=1
 done < <(find "$level_dir" -mindepth 1 -maxdepth 1 -type d \
   ! \( -name "aggregated" -o -name "unclassified" \) \
   -exec find {} -type f -name "*_genomic.fna" -print0 \;)
 while IFS= read -r -d '' genome_file; do
-genome_basename=$(basename "$genome_file" | tr -d '\r\n')
-if [[ -z "${classified_files["$genome_basename"]}" ]]; then
+genome_basename=$(basename "$genome_file" | tr -d '\r\n ')
+if [[ -z "${classified_files["$genome_basename"]+exists}" ]]; then
 echo "Moving unclassified genome: $genome_basename"
 mv -f "$genome_file" "$unclassified_dir/" || echo "Failed to move $genome_file"
 fi

@@ -20,12 +20,12 @@ DRAFT_BLAST_DB_DIR="${DATABASE_DIR}/draft_blast_db"
 DRAFT_BLAST_RESULT_DIR="${WORK_DIR}/result/draft_blast_results"
 FILTERED_DRAFT_BLAST_RESULT_DIR="${WORK_DIR}/result/filtered_draft_blast_results"
 OVERWRITE=false
-FORCE_REBUILD=false
+FORCE_REBUILD_CUSTOM=0
 # job scheduler variables
 runtime=24:00:00; hpcmem=360GB; hpcthreads=72; hpc=F; queue=NA; account=NA
 # usage setup
 usage() {
-    echo "Usage: $0 -g GENE_FILE [-t TAXON_FILE] [-d DOWNLOAD_FILE] [-c COVERAGE] [-i IDENTITY] [-o OUTPUT_FILE] [-p HPC_CLUSTER] [-q QUEUE] [-r RUNTIME] [-m MEMORY] [-C THREADS] [-a ACCOUNT] [-H MODE] [-O OVERWRITE] [-F FORCE_REBUILD] [-h|--help]"
+    echo "Usage: $0 -g GENE_FILE [-t TAXON_FILE] [-d DOWNLOAD_FILE] [-c COVERAGE] [-i IDENTITY] [-o OUTPUT_FILE] [-p HPC_CLUSTER] [-q QUEUE] [-r RUNTIME] [-m MEMORY] [-C THREADS] [-a ACCOUNT] [-H MODE] [-O OVERWRITE] [-h|--help]"
     echo ""
     echo "Required arguments:"
     echo "-g GENE_FILE      : FASTA file containing target gene sequences."
@@ -44,7 +44,7 @@ usage() {
     echo "-a ACCOUNT        : SLURM account/project (if needed)."
     echo "-H MODE           : Analysis mode ('light' or 'heavy'). Default is light."
     echo "-O OVERWRITE      : Set to true to overwrite previous results (default: false)."
-    echo "-F FORCE_REBUILD  : Set to true to rebuild previous custom complete genomes database (default: false)."
+    echo "--force-custom-download : Set to true to rebuild previous custom complete genomes database (default: false)."
 echo "-h, --help        : Show this help message and exit."
 }
 # Parse argument (adapted)
@@ -64,10 +64,18 @@ while [[ "$#" -gt 0 ]]; do
         -a) account="$2"; shift 2 ;;
         -H) MODE="$2"; shift 2 ;;
         -O) OVERWRITE="$2"; shift 2 ;;
-        -F) FORCE_REBUILD="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
+        --force-custom-download)
+          if [[ "$2" == "true" ]]; then
+           FORCE_REBUILD_CUSTOM=1
+          else
+           FORCE_REBUILD_CUSTOM=0
+          fi
+          shift
+          ;;
         *) echo "Invalid option: $1"; usage; exit 1 ;;
     esac
+    shift
 done
 
 #adapted from GEAbash_v1.0.0; seems to be working as expected
@@ -77,7 +85,7 @@ done
 #    i) MIN_IDENTITY="${OPTARG}" ;;    o) OUTPUT_FILE="${OPTARG}" ;;    p) hpc="${OPTARG}" ;;
 #    q) queue="${OPTARG}" ;;    r) runtime="${OPTARG}" ;;    m) hpcmem="${OPTARG}" ;;
 #    C) hpcthreads="${OPTARG}" ;;    a) account="${OPTARG}" ;;    H) MODE="${OPTARG}" ;;
-#    O) OVERWRITE="${OPTARG}" ;;    F) FORCE_REBUILD="${OPTARG}"  
+#    O) OVERWRITE="${OPTARG}" ;;     
 #    -h|--help) usage; exit 0 ;;
 #    *) echo "Invalid option: $1"; usage
 #       exit 1 ;;    esac; done
@@ -135,14 +143,14 @@ sed -i "s/hpctasks/$hpcthreads/g" sge2.sh #user
 #lines 214,221 assume -g -c -i -o -H -O -t in 
 #user supplied arguments to getprev or getprev defaults
 sed -i \
-'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" -p T%g' \
+'s%command%bash getprev.sh -g \"\$GENE_FILE\" -c \"\$MIN_COVERAGE\" -i \"\$MIN_IDENTITY\" -o \"\$OUTPUT_FILE\" -H \"\$MODE\" -O \"\$OVERWRITE\" -t \"\$TAXON_FILE\" -d \"\$DOWNLOAD_FILE\" --force-custom-download \"\$FORCE_REBUILD_CUSTOM\" -p T%g' \
 sge2.sh
 #write the needed variables to the sge template
 #the last variable tells EGP that ${"hpc"} = T
 #so that this entire while loop will be skipped
 #by the EGP resubmission
 sed -i \
-"s%vars%OVERWRITE='$OVERWRITE'; GENE_FILE='$GENE_FILE'; MIN_COVERAGE='$MIN_COVERAGE'; MIN_IDENTITY='$MIN_IDENTITY'; OUTPUT_FILE='$OUTPUT_FILE'; MODE='$MODE'; TAXON_FILE='$TAXON_FILE'; DOWNLOAD_FILE='$DOWNLOAD_FILE'; FORCE_REBUILD='$FORCE_REBUILD'%g" \
+"s%vars%OVERWRITE='\$OVERWRITE'; GENE_FILE='\$GENE_FILE'; MIN_COVERAGE='\$MIN_COVERAGE'; MIN_IDENTITY='\$MIN_IDENTITY'; OUTPUT_FILE='\$OUTPUT_FILE'; MODE='\$MODE'; TAXON_FILE='\$TAXON_FILE'; DOWNLOAD_FILE='\$DOWNLOAD_FILE'; FORCE_REBUILD_CUSTOM='\$FORCE_REBUILD_CUSTOM'%g" \
 sge2.sh
 
 #make sure the user provided account is written to the template
@@ -171,14 +179,14 @@ sed -i "s/hpctasks/$hpcthreads/g" slurm2.sh #user
 sed -i 's/other/$other/g' slurm2.sh #local.
 #write the GEA command to the slurm template
 sed -i \
-'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" -p T%g' \
+'s%command%bash getprev.sh -g \"\$GENE_FILE\" -c \"\$MIN_COVERAGE\" -i \"\$MIN_IDENTITY\" -o \"\$OUTPUT_FILE\" -H \"\$MODE\" -O \"\$OVERWRITE\" -t \"\$TAXON_FILE\" -d \"\$DOWNLOAD_FILE\" --force-custom-download \"\$FORCE_REBUILD_CUSTOM\" -p T%g' \
 slurm2.sh
 #write the needed variables to the slurm template
 #the last variable tells EGP that ${"hpc"} = T
 #so that this entire while loop will be skipped
 #by the EGP resubmission
 sed -i \
-"s%vars%OVERWRITE='$OVERWRITE'; GENE_FILE='$GENE_FILE'; MIN_COVERAGE='$MIN_COVERAGE'; MIN_IDENTITY='$MIN_IDENTITY'; OUTPUT_FILE='$OUTPUT_FILE'; MODE='$MODE'; TAXON_FILE='$TAXON_FILE'; DOWNLOAD_FILE='$DOWNLOAD_FILE'; FORCE_REBUILD='$FORCE_REBUILD'%g" \
+"s%vars%OVERWRITE='\$OVERWRITE'; GENE_FILE='\$GENE_FILE'; MIN_COVERAGE='\$MIN_COVERAGE'; MIN_IDENTITY='\$MIN_IDENTITY'; OUTPUT_FILE='\$OUTPUT_FILE'; MODE='\$MODE'; TAXON_FILE='\$TAXON_FILE'; DOWNLOAD_FILE='\$DOWNLOAD_FILE'; FORCE_REBUILD_CUSTOM='\$FORCE_REBUILD_CUSTOM'%g" \
 slurm2.sh
 
 #make sure the user provided account is written to the template
@@ -238,105 +246,83 @@ if [[ -n "${DOWNLOAD_FILE:-}" ]]; then
 echo "Custom panel download requested."
 GENOME_DIR="$CUSTOM_GENOMES_DIR"
 CUSTOM_PANEL_CHECKPOINT="$GENOME_DIR/.custom_download_complete"
-mkdir -p "$GENOME_DIR" "$BLAST_DB_DIR"
+mkdir -p "$GENOME_DIR"
+mkdir -p "$BLAST_DB_DIR"
 > "$FAILED_FLAG"
-
-if [[ -f "$CUSTOM_PANEL_CHECKPOINT" && "${FORCE_REBUILD:-false}" != "true" ]]; then
-echo "Custom panel database already exists. Skipping rebuild."
+if [[ -f "$CUSTOM_PANEL_CHECKPOINT" && "${FORCE_REBUILD_CUSTOM:-0}" -eq 0 ]]; then
+echo "Custom panel database already downloaded. Skipping rebuild."
 else
-max_parallel_genus=6
-max_parallel_species=4
-genus_pids=()
-
-while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
+max_parallel_jobs=8
+while IFS= read -r raw_line || [ -n "$raw_line" ]; do
 taxon=$(echo "$raw_line" | tr -d '\r')
 [[ -z "$taxon" ]] && continue
-
 (
 if [[ "$taxon" == "Salmonella" || "$taxon" == "Salmonella enterica" ]]; then
-echo "Detected $taxon. Downloading all subspecies and serotypes."
-if ! get_salmonella_subsp_list "$GENOME_DIR"; then echo "Failed to get Salmonella subspecies list" >> "$FAILED_FLAG"; exit 1; fi
-if ! download_salmonella_subsp "$GENOME_DIR"; then echo "Failed to download Salmonella subspecies" >> "$FAILED_FLAG"; exit 1; fi
-if ! get_salmonella_serotype_list "$GENOME_DIR"; then echo "Failed to get Salmonella serotype list" >> "$FAILED_FLAG"; exit 1; fi
-if ! download_salmonella_serotype "$GENOME_DIR"; then echo "Failed to download Salmonella serotypes" >> "$FAILED_FLAG"; exit 1; fi
-
+echo "$taxon detected. Downloading all subspecies and serotypes."
+if ! get_salmonella_subsp_list "$GENOME_DIR"; then
+echo "Failed to get Salmonella subspecies list" >> "$FAILED_FLAG"; exit 1
+fi
+if ! download_salmonella_subsp "$GENOME_DIR"; then
+echo "Failed to download Salmonella subspecies" >> "$FAILED_FLAG"; exit 1
+fi
+if ! get_salmonella_serotype_list "$GENOME_DIR"; then
+echo "Failed to get Salmonella serotype list" >> "$FAILED_FLAG"; exit 1
+fi
+if ! download_salmonella_serotype "$GENOME_DIR"; then
+echo "Failed to download Salmonella serotypes" >> "$FAILED_FLAG"; exit 1
+fi
 elif [[ "$taxon" == "Salmonella enterica subsp. enterica" ]]; then
-echo "Downloading all serotypes under '$taxon'."
-if ! get_salmonella_serotype_list "$GENOME_DIR"; then echo "Failed to get serotype list" >> "$FAILED_FLAG"; exit 1; fi
-if ! download_salmonella_serotype "$GENOME_DIR"; then echo "Failed to download serotypes" >> "$FAILED_FLAG"; exit 1; fi
-
-elif [[ $taxon =~ ^Salmonella( enterica subsp\.?\ enterica serovar)?\ ([A-Z][a-zA-Z0-9_]+)$ ]]; then
+echo "Downloading all serotypes under 'Salmonella enterica subsp. enterica'"
+if ! get_salmonella_serotype_list "$GENOME_DIR"; then
+echo "Failed to get serotype list" >> "$FAILED_FLAG"; exit 1
+fi
+if ! download_salmonella_serotype "$GENOME_DIR"; then
+echo "Failed to download serotypes" >> "$FAILED_FLAG"; exit 1
+fi
+elif [[ "$taxon" =~ ^Salmonella( enterica subsp\.?\ enterica serovar)? ([A-Z][a-zA-Z0-9_]+)$ ]]; then
 serotype="${BASH_REMATCH[2]}"
-echo "Downloading Salmonella serotype: $serotype"
+echo "Downloading $serotype"
 echo "$serotype" > "$GENOME_DIR/temp_serotype_list.txt"
 if ! download_salmonella_serotype "$GENOME_DIR" "$GENOME_DIR/temp_serotype_list.txt"; then
 echo "Failed to download serotype: $serotype" >> "$FAILED_FLAG"
 fi
 rm -f "$GENOME_DIR/temp_serotype_list.txt"
-
 elif [[ "$taxon" =~ ^[A-Z][a-z]+$ ]]; then
-echo "Downloading genus: $taxon"
-if ! download_single_genus "$taxon" "$GENOME_DIR"; then
+echo "$taxon" >> "$GENOME_DIR/custom_genus_list.txt"
 echo "Failed to download genus: $taxon" >> "$FAILED_FLAG"; exit 1
 fi
-temp_species_list="$GENOME_DIR/species_list_${taxon}.txt"
-if ! get_species_list "$taxon" "$temp_species_list"; then
-echo "Failed to get species list for genus: $taxon" >> "$FAILED_FLAG"; exit 1
+if ! get_species_list "$taxon" "$GENOME_DIR"; then
+echo "Failed to get species list: $taxon" >> "$FAILED_FLAG"; exit 1
 fi
-sort "$temp_species_list" | uniq > "${temp_species_list}.dedup"
-mv "${temp_species_list}.dedup" "$temp_species_list"
-echo "Expanding genus $taxon into species-level downloads."
-sp_pids=()
-while IFS= read -r species; do
-[[ -z "$species" ]] && continue
-(
-echo "Downloading species: $species (under genus $taxon)"
-if ! download_species "$species" "$GENOME_DIR"; then
-echo "Failed to download species: $species under genus: $taxon" >> "$FAILED_FLAG"
+if ! download_species "$GENOME_DIR/species_list.txt" "$GENOME_DIR"; then
+echo "Failed to download species for $taxon" >> "$FAILED_FLAG"
 fi
-) &
-sp_pids+=($!)
-if (( ${#sp_pids[@]} >= max_parallel_species )); then
-wait "${sp_pids[@]}"
-sp_pids=()
-fi
-done < "$temp_species_list"
-wait "${sp_pids[@]}"
-
 elif [[ "$taxon" =~ ^[A-Z][a-z]+\ [a-z]+$ ]]; then
-echo "Downloading specific species: $taxon"
 if ! download_species "$taxon" "$GENOME_DIR"; then
 echo "Failed to download species: $taxon" >> "$FAILED_FLAG"
 fi
 fi
 ) &
-
-genus_pids+=($!)
-if (( ${#genus_pids[@]} >= max_parallel_genus )); then
-wait "${genus_pids[@]}"
-genus_pids=()
-fi
+while (( $(jobs -r | wc -l) >= max_parallel_jobs )); do
+sleep 1
+done
 done < "$DOWNLOAD_FILE"
-
-wait "${genus_pids[@]}"
-echo "Organizing unclassified genomes."
+wait
+echo "Organizing unclassified genomes"
 move_unclassified_genomes "$GENOME_DIR"
-echo "Building BLAST databases for the custom panel."
+echo "Building BLAST databases for custom panel"
 build_blastdb "$GENOME_DIR" "$BLAST_DB_DIR"
-
 if [[ -s "$FAILED_FLAG" ]]; then
-echo "Custom panel completed with some failures. See $FAILED_FLAG for details."
+echo "Custom panel completed with some failures. See $FAILED_FLAG"
 else
-echo "Custom panel build completed successfully."
+echo "Custom panel build complete."
 touch "$CUSTOM_PANEL_CHECKPOINT"
 fi
 fi
-
 else
 GENOME_DIR=""
 echo "Default mode: using prebuilt BLAST database."
 fi
-
 # Set delimiter as a space
 if [[ -n "$TAXON_FILE" ]]; then
 if [[ ! -f "$TAXON_FILE" ]]; then
