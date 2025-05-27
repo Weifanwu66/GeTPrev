@@ -255,9 +255,9 @@ while IFS= read -r raw_line || [ -n "$raw_line" ]; do
 taxon=$(echo "$raw_line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '\r')
 [[ -z "$taxon" ]] && continue
 (
-SAL_DIR="$GENOME_DIR/Salmonella"
-[[ -d "$SAL_DIR" ]] || mkdir -p "$SAL_DIR"
 if [[ "$taxon" == "Salmonella" ]]; then
+SAL_DIR="$GENOME_DIR/Salmonella"
+mkdir -p "$SAL_DIR"
 echo "$taxon detected. Downloading all species, subspecies, and serotypes."
 download_single_genus "$taxon" "$GENOME_DIR"
 get_salmonella_subsp_list "$SUBSPECIES_LIST_FILE"
