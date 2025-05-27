@@ -241,9 +241,14 @@ CUSTOM_PANEL_CHECKPOINT="$GENOME_DIR/.custom_download_complete"
 mkdir -p "$GENOME_DIR"
 mkdir -p "$BLAST_DB_DIR"
 > "$FAILED_FLAG"
-if [[ -f "$CUSTOM_PANEL_CHECKPOINT" && "${FORCE_REBUILD:-false}" != "true" ]]; then
+if [[ -f "$CUSTOM_PANEL_CHECKPOINT" && "${FORCE_REBUILD,,}" != "true" ]]; then
 echo "Custom panel database already downloaded. Skipping rebuild."
 else
+if [[ "${FORCE_REBUILD,,}" == "true" ]]; then
+echo "FORCE_REBUILD is true. Removing previous custom genomes and BLAST DB..."
+rm -rf "$GENOME_DIR"/*
+rm -rf "$BLAST_DB_DIR"/*
+fi
 TOTAL_CPUS=$(get_cpus)
 MAX_PARALLEL_JOBS=$(( TOTAL_CPUS * 2 / 3 ))
 while IFS= read -r raw_line || [ -n "$raw_line" ]; do
@@ -260,7 +265,6 @@ download_salmonella_subsp "$SUBSPECIES_LIST_FILE"
 get_salmonella_serotype_list "$SEROTYPE_LIST_FILE"
 download_salmonella_serotype "$SEROTYPE_LIST_FILE"
 move_unclassified_genomes "$SAL_DIR"
-
 elif [[ "$taxon" == "Salmonella enterica" ]]; then
 echo "$taxon detected. Downloading all subspecies and serotypes under enterica."
 get_salmonella_subsp_list "$SUBSPECIES_LIST_FILE"
@@ -268,13 +272,11 @@ download_salmonella_subsp "$SUBSPECIES_LIST_FILE"
 get_salmonella_serotype_list "$SEROTYPE_LIST_FILE"
 download_salmonella_serotype "$SEROTYPE_LIST_FILE"
 move_unclassified_genomes "$SAL_DIR"
-
 elif [[ "$taxon" == "Salmonella enterica subsp. enterica" ]]; then
 echo "$taxon detected. Downloading all serotypes only."
 get_salmonella_serotype_list "$SEROTYPE_LIST_FILE"
 download_salmonella_serotype "$SEROTYPE_LIST_FILE"
 move_unclassified_genomes "$SAL_DIR"
-
 elif [[ "$taxon" =~ ^Salmonella( enterica subsp\.?\ enterica serovar)?\ ([A-Z][a-zA-Z0-9_]+)$ ]]; then
 serotype="${BASH_REMATCH[2]}"
 echo "Downloading serotype: $serotype"
@@ -282,13 +284,11 @@ echo "$serotype" > "$GENOME_DIR/temp_serotype_list.txt"
 download_salmonella_serotype "$GENOME_DIR/temp_serotype_list.txt"
 rm -f "$GENOME_DIR/temp_serotype_list.txt"
 move_unclassified_genomes "$SAL_DIR"
-
 elif [[ "$taxon" =~ ^[A-Z][a-z]+\ [a-z]+$ ]]; then
 echo "Downloading species: $taxon"
 download_species "$taxon" "$GENOME_DIR"
 GENUS_DIR="$GENOME_DIR/$(echo "$taxon" | cut -d' ' -f1)"
 move_unclassified_genomes "$GENUS_DIR"
-
 elif [[ "$taxon" =~ ^[A-Z][a-z]+$ ]]; then
 echo "Processing genus: $taxon"
 GENUS_DIR="$GENOME_DIR/$taxon"
@@ -318,14 +318,18 @@ fi
 while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do sleep 1; done
 done < "$DOWNLOAD_FILE"
 wait
-
 echo "Building BLAST databases for custom panel"
-move_unclassified_genomes "$GENOME_DIR"
-build_blastdb "$GENOME_DIR" "$BLAST_DB_DIR"
-
-echo "Compressing all *_genomic.fna and *_all_genomes.fna"
-find "$GENOME_DIR" -type f \( -name "*_genomic.fna" -o -name "*_all_genomes.fna" \) -exec gzip -f {} \;
-
+parallel_genus_dirs=$(find "$GENOME_DIR" -mindepth 1 -maxdepth 1 -type d)
+for dir in $parallel_genus_dirs; do
+(
+move_unclassified_genomes "$dir"
+build_blastdb "$dir" "$BLAST_DB_DIR"
+find "$dir" -type f \( -name "*_genomic.fna" -o -name "*_all_genomes.fna" \) | while read -r f; do gzip -f "$f" & done
+wait
+) &
+while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do sleep 1; done
+done
+wait
 if [[ -s "$FAILED_FLAG" ]]; then
 echo "Custom panel completed with some failures. See $FAILED_FLAG"
 else
