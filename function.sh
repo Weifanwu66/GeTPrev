@@ -239,39 +239,53 @@ local input_dir="$1"
 local output_dir="$2"
 mkdir -p "$output_dir"
 echo "Building BLAST database from genomes in $input_dir"
-# Create BLAST database for all genus
-find "$input_dir" -mindepth 1 -maxdepth 1 -type d | while read -r GENUS_DIR; do
-GENUS=$(basename "$GENUS_DIR")
-echo "Processing genus: $GENUS"
-GENUS_FASTA="${GENUS_DIR}/${GENUS}_all_genomes.fna"
-find "$GENUS_DIR" -type f -name "*_genomic.fna" -exec cat {} + > "$GENUS_FASTA"
-create_blastdb "$GENUS_FASTA" "${output_dir}/${GENUS}"
-# Species-level databases
-find "$GENUS_DIR" -mindepth 1 -maxdepth 1 -type d | while read -r SPECIES_DIR; do
-SPECIES=$(basename "$SPECIES_DIR")
-[[ "$SPECIES" == "unclassified" ]] && continue
-SPECIES_FASTA="${SPECIES_DIR}/${SPECIES}_all_genomes.fna"
-find "$SPECIES_DIR" -type f -name "*_genomic.fna" -exec cat {} + > "$SPECIES_FASTA"
-create_blastdb "$SPECIES_FASTA" "${output_dir}/${SPECIES}"
-if [[ "$SPECIES" == "Salmonella_enterica" ]]; then
-find "$SPECIES_DIR" -mindepth 1 -maxdepth 1 -type d | while read -r SUBSPECIES_DIR; do
-SUBSPECIES=$(basename "$SUBSPECIES_DIR")
-[[ "$SUBSPECIES" == "unclassified" ]] && continue
-SUBSPECIES_FASTA="${SUBSPECIES_DIR}/Salmonella_enterica_subsp_${SUBSPECIES}_all_genomes.fna"
-find "$SUBSPECIES_DIR" -type f -name "*_genomic.fna" -exec cat {} + > "$SUBSPECIES_FASTA"
-create_blastdb "$SUBSPECIES_FASTA" "${output_dir}/Salmonella_enterica_subsp_${SUBSPECIES}"
-if [[ "$SUBSPECIES" == "enterica" ]]; then
-find "$SUBSPECIES_DIR" -mindepth 1 -maxdepth 1 -type d | while read -r SEROTYPE_DIR; do
-SEROTYPE=$(basename "$SEROTYPE_DIR")
-[[ "$SEROTYPE" == "unclassified" ]] && continue
-SEROTYPE_FASTA="${SEROTYPE_DIR}/${SEROTYPE}_genomes.fna"
-find "$SEROTYPE_DIR" -type f -name "*_genomic.fna" -exec cat {} + > "$SEROTYPE_FASTA"
-create_blastdb "$SEROTYPE_FASTA" "${output_dir}/Salmonella_${SEROTYPE}"
+find "$input_dir" -mindepth 1 -maxdepth 1 -type d | while read -r TAXON_DIR; do
+local taxon_name
+taxon_name=$(basename "$TAXON_DIR")
+[[ "$taxon_name" == "unclassified" ]] && continue
+local subdir_count
+subdir_count=$(find "$TAXON_DIR" -mindepth 1 -maxdepth 1 -type d ! -name "unclassified" | wc -l)
+if [[ "$subdir_count" -eq 0 ]]; then
+echo "Detected species-level directory: $taxon_name"
+local species_fasta="$TAXON_DIR/${taxon_name}_all_genomes.fna"
+find "$TAXON_DIR" -type f -name "*_genomic.fna" -exec cat {} + > "$species_fasta"
+create_blastdb "$species_fasta" "$output_dir/$taxon_name"
+else
+echo "Detected genus-level directory: $taxon_name"
+local genus_fasta="$TAXON_DIR/${taxon_name}_all_genomes.fna"
+find "$TAXON_DIR" -type f -name "*_genomic.fna" -exec cat {} + > "$genus_fasta"
+create_blastdb "$genus_fasta" "$output_dir/$taxon_name"
+find "$TAXON_DIR" -mindepth 1 -maxdepth 1 -type d | while read -r species_dir; do
+local species_name
+species_name=$(basename "$species_dir")
+[[ "$species_name" == "unclassified" ]] && continue
+local species_fasta="$species_dir/${species_name}_all_genomes.fna"
+find "$species_dir" -type f -name "*_genomic.fna" -exec cat {} + > "$species_fasta"
+create_blastdb "$species_fasta" "$output_dir/$species_name"
+if [[ "$species_name" == "Salmonella_enterica" ]]; then
+find "$species_dir" -mindepth 1 -maxdepth 1 -type d | while read -r subspecies_dir; do
+local subspecies_name
+subspecies_name=$(basename "$subspecies_dir")
+[[ "$subspecies_name" == "unclassified" ]] && continue
+echo "Detected Salmonella subspecies: $subspecies_name"
+local subspecies_fasta="$subspecies_dir/Salmonella_enterica_subsp_${subspecies_name}_all_genomes.fna"
+find "$subspecies_dir" -type f -name "*_genomic.fna" -exec cat {} + > "$subspecies_fasta"
+create_blastdb "$subspecies_fasta" "$output_dir/Salmonella_enterica_subsp_${subspecies_name}"
+if [[ "$subspecies_name" == "enterica" ]]; then
+find "$subspecies_dir" -mindepth 1 -maxdepth 1 -type d | while read -r serotype_dir; do
+local serotype_name
+serotype_name=$(basename "$serotype_dir")
+[[ "$serotype_name" == "unclassified" ]] && continue
+echo "Detected Salmonella enterica serotype: $serotype_name"
+local serotype_fasta="$serotype_dir/${serotype_name}_genomes.fna"
+find "$serotype_dir" -type f -name "*_genomic.fna" -exec cat {} + > "$serotype_fasta"
+create_blastdb "$serotype_fasta" "$output_dir/Salmonella_${serotype_name}"
 done
 fi
 done
 fi
 done
+fi
 done
 echo "Finished building BLAST databases"
 }
