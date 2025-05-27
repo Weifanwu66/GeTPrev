@@ -250,9 +250,15 @@ find "$TAXON_DIR" -type f -name "*_genomic.fna" -exec cat {} + > "$species_fasta
 create_blastdb "$species_fasta" "$output_dir/$taxon_name"
 else
 echo "Detected genus-level directory: $taxon_name"
-genus_fasta="$TAXON_DIR/${taxon_name}_all_genomes.fna"
-find "$TAXON_DIR" -type f -name "*_genomic.fna" -exec cat {} + > "$genus_fasta"
-create_blastdb "$genus_fasta" "$output_dir/$taxon_name"
+# Count how many meaningful subdirs exist under this genus (excluding 'unclassified')
+num_children=$(find "$TAXON_DIR" -mindepth 1 -maxdepth 1 -type d ! -name "unclassified" | wc -l)
+if [[ "$num_children" -gt 1 ]]; then
+    genus_fasta="$TAXON_DIR/${taxon_name}_all_genomes.fna"
+    find "$TAXON_DIR" -type f -name "*_genomic.fna" -exec cat {} + > "$genus_fasta"
+    create_blastdb "$genus_fasta" "$output_dir/$taxon_name"
+else
+    echo "Skipping genus-level BLAST DB for $taxon_name (only one species/subdir)"
+fi
 find "$TAXON_DIR" -mindepth 1 -maxdepth 1 -type d | while read -r species_dir; do
 species_name=$(basename "$species_dir")
 [[ "$species_name" == "unclassified" ]] && continue
