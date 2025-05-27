@@ -14,6 +14,7 @@ GENOME_DIR="$DATABASE_DIR/complete_genomes"
 BLAST_DB_DIR="$DATABASE_DIR/complete_blast_db"
 FAILED_FLAG="$WORKDIR/build_EB_db_failed.flag"
 MONOPHASIC_TYPHIMURIUM_LIST="$DATABASE_DIR/monophasic_Typhimurium_list.txt"
+TYPHIMURIUM_LIST="$DATABASE_DIR/Typhimurium_list.txt"
 SEROTYPE_LIST_FILE="$GENOME_DIR/Salmonella/salmonella_serotype_list.txt"
 SUBSPECIES_LIST_FILE="$GENOME_DIR/Salmonella/salmonella_subspecies_list.txt"
 export FORCE_UPDATE="true"
@@ -76,6 +77,11 @@ if ! download_salmonella_serotype "$SEROTYPE_LIST_FILE"; then
 echo "Failed to download Salmonella serotypes" >> "$FAILED_FLAG"; exit 1
 fi
 move_unclassified_genomes "$SALMONELLA_DIR"
+echo "Building BLAST DB for Salmonella"
+build_blastdb "$SALMONELLA_DIR" "$BLAST_DB_DIR"
+echo "Compressing Salmonella *_genomic.fna and *_all_genomes.fna"
+find "$SALMONELLA_DIR" -type f \( -name "*_genomic.fna" -o -name "*_all_genomes.fna" \) | while read -r f; do gzip -f "$f" & done
+wait
 ) &
 SALMONELLA_PID=$!
 
@@ -113,6 +119,11 @@ done < "$SPECIES_LIST_FILE"
 wait "${species_pids[@]}"
 echo "$GENUS: organizing unclassified genomes"
 move_unclassified_genomes "$GENUS_DIR"
+echo "Building BLAST DB for $GENUS"
+build_blastdb "$GENUS_DIR" "$BLAST_DB_DIR"
+echo "Compressing $GENUS *_genomic.fna and *_all_genomes.fna"
+find "$GENUS_DIR" -type f \( -name "*_genomic.fna" -o -name "*_all_genomes.fna" \) | while read -r f; do gzip -f "$f" & done
+wait
 ) &
 genus_pids+=($!)
 done
@@ -135,11 +146,5 @@ if [[ -s "$FAILED_FLAG" ]]; then
 echo "One or more genome downloads failed. See $FAILED_FLAG for details."
 exit 1
 fi
-
-echo "Building BLAST databases"
-build_blastdb "$GENOME_DIR" "$BLAST_DB_DIR"
-
-echo "Compressing all *_genomic.fna and *_all_genomes.fna"
-find "$GENOME_DIR" -type f \( -name "*_genomic.fna" -o -name "*_all_genomes.fna" \) -exec gzip -f {} \;
 
 echo "All genome downloads, database builds, and compression steps completed."
