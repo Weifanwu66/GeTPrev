@@ -1,12 +1,12 @@
-# Gene Prevalence Estimation Tool for Enterobacteriaceae
+# Gene Taxonomic Prevalence Estimation Tool for Bacterial Taxonomic Groups
 
 ## Overview
-This tool is designed for estimating the prevalence of a specific gene in Enterobacteriaceae taxa, integrating NCBI genome retrieval, BLAST database construction, and automated query analysis.
+This tool is designed for estimating the prevalence of specific genes in bacterial taxa, integrating NCBI genome retrieval, BLAST database construction, and automated query analysis.
 
 ## Features
 ### Genomic Data Acquisition
 * **Storage‑friendly metadata:** Because of the large storage requirements, genome sequence files used to build the BLAST database are **not** stored in this repository. Instead, `database/metadata` holds the assembly‑accession lists so users can re‑download any sequence on demand.  
-* **Pre‑built complete‑genome database:** A BLAST database built from complete genomes of the default seven Enterobacteriaceae genera is provided for quick, high‑quality searches.  
+* **Pre‑built complete‑genome database:** A BLAST database built from complete genomes of the default seven Enterobacteriaceae genus is provided for quick, high‑quality searches and hosted on USDA Ag Data Commons. The script `build_EB_complete_genomes_database.sh` is also provided for reproducing or updating the default database. 
 * **Heavy mode (`‑H heavy` + `‑t <taxon_file>`):** Adds draft genomes to the analysis. Draft assemblies for each target taxon are downloaded with *ncbi‑genome‑download*, shuffled, and sampled in iterations (Cochran’s formula with finite‑population correction; ≤ 20 iterations) to capture diversity while keeping runtime reasonable.  
 * **Custom genome panel (`‑d <download_file>`):** Lets users work **outside** the default Enterobacteriaceae genus. Supply a text file (one genus per line) and the pipeline will download the corresponding **complete genomes**, build a bespoke BLAST database in real time, and then run either LIGHT or HEAVY mode against that database.
 
@@ -87,11 +87,11 @@ The script to download complete genomes and their corresponding BLAST DB is buil
 
 ### SLURM Integration
 
-EGP is designed to run efficiently on high‑performance computing (HPC) systems managed by **SLURM** workload managers.
+GeTPrev is designed to run efficiently on high‑performance computing (HPC) systems managed by **SLURM** workload managers.
 
 Built‑in SLURM support enables:
 
-* **Automatic job submission**: EGP can generate SLURM batch scripts internally when queues (`‑q`), resources (`‑m`, `‑r`), and node constraints are specified.
+* **Automatic job submission**: GeTPrev can generate SLURM batch scripts internally when queues (`‑q`), resources (`‑m`, `‑r`), and node constraints are specified.
 * **Flexible resource requests**: Users can control memory, CPU cores, wall‑time, and partition selection through command‑line options.
 * **Robust parallelism**: Multiple `blastn` processes and download threads are automatically parallelized across available CPUs.
 * **Queue compatibility**: Tested on partitions like `ceres`, `short`, and `long` on SCINet clusters (Ceres, Atlas).
@@ -102,7 +102,7 @@ Built‑in SLURM support enables:
 
 ```bash
 # Run default light mode using custom database on SCINet (partition ceres, 8 CPUs, 16 GB RAM, 4 hours max)
-bash EGP.sh -g genes.fasta -d download_taxon.txt -q ceres -C 8 -m 16G -r 04:00:00
+bash getprev.sh -g genes.fasta -d download_taxon.txt -q ceres -C 8 -m 16G -r 04:00:00
 ```
 
 ### SLURM Parameters Exposed in EGP
@@ -129,14 +129,14 @@ scontrol show job <jobID>
 To run this pipeline, set up a Conda environment with the required dependencies.
 1. Clone the Repository
 ```sh
-git clone https://github.com/Weifanwu66/EGP.git
-cd EGP
+git clone https://github.com/Weifanwu66/GeTPrev.git getprev
+cd getprev
 ```
 2. Create and Activate the Conda Environment
 The pipeline requires a Conda environment with all necessary dependencies. To create and activate it, run:
 ```sh
 conda env create -f environment.yml
-conda activate EGP
+conda activate getprev
 ```
 To verify the installation, check if all tools are installed:
 ```sh
@@ -160,43 +160,43 @@ conda install -c bioconda <package_name>
 ### 1. Run default light mode with 95% of identity and 90% of coverage (no target (-t) is defined, so the pipeline will loop through all taxonomic group available in pre-built database)
 
 ```bash
-bash EGP.sh -g test/test_gene.fasta -i 95 -c 90 -q ceres -r 04:00:00 -m 16G -C 8
+bash getprev.sh -g test_gene.fasta -i 95 -c 90 -q ceres -r 04:00:00 -m 16G -C 8
 ```
 
 ### 2. Run with a single taxon target in light mode
 
 ```bash
-bash EGP.sh -g test/test_gene.fasta -t "Salmonella" -i 95 -c 90 -q ceres -r 04:00:00 -m 16G -C 8
+bash getprev.sh -g test_gene.fasta -t "Salmonella" -i 95 -c 90 -q ceres -r 04:00:00 -m 16G -C 8
 ```
 
 ### 3. Run heavy mode with multiple targets listed in a text file
 
 ```bash
-bash EGP.sh -g test/test_gene.fasta -t test/test_taxon.txt -q ceres -r 08:00:00 -m 32G -C 16 -H heavy
+bash getprev.sh -g test_gene.fasta -t test_taxon.txt -q ceres -r 08:00:00 -m 32G -C 16 -H heavy
 ```
 
 ### 4. Custom genome panel — light mode
 
 ```bash
-bash EGP.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 06:00:00 -m 24G -C 12
+bash getprev.sh -g test_gene.fasta -d download_taxon.txt -q ceres -r 06:00:00 -m 24G -C 12
 ```
 
 ### 5. Custom genome panel — heavy mode
 
 ```bash
-bash EGP.sh -g test/test_gene.fasta -d test/download_taxon.txt -t test/custom_test_taxon.txt -q ceres -r 12:00:00 -m 48G -C 24 -H heavy
+bash getprev.sh -g test_gene.fasta -d download_taxon.txt -t custom_test_taxon.txt -q ceres -r 12:00:00 -m 48G -C 24 -H heavy
 ```
 
 ### 6. Overwrite previous results
 
 ```bash
-bash EGP.sh -g test/test_gene.fasta -q ceres -r 02:00:00 -m 8G -C 4 -O true
+bash getprev.sh -g test_gene.fasta -q ceres -r 02:00:00 -m 8G -C 4 -O true
 ```
 
-### 7. Rebuild default EB database with 7 genus
+### 7. Rebuild default EB database
 
 ```bash
-bash build_EB_complete_genomes_database.sh
+sbatch build_EB_complete_genomes_database.sh
 ```
 > ⚠️ This script downloads and formats the default Enterobacteriaceae database.  
 > It includes 7 genus: *Salmonella, Escherichia, Enterobacter, Klebsiella, Cronobacter, Citrobacter,* and *Shigella*.  
