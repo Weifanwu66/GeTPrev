@@ -536,7 +536,7 @@ local query="$(extract_taxon_info "$input")"
 local clean_query="${query// /_}"
 clean_query="${clean_query//./}"
 local db_name=""
-if [[ "$clean_query" == "Salmonella_monophasic_Typhimurium" ]]; then
+if [[ "$query" == "Salmonella enterica subsp. enterica serovar monophasic Typhimurium" ]]; then
 db_name="Salmonella_monophasic_Typhimurium"
 elif [[ "$clean_query" =~ ^Salmonella_enterica_subsp_enterica_serovar_([A-Z][a-zA-Z0-9_]+)$ ]]; then
 db_name="Salmonella_${BASH_REMATCH[1]}"
