@@ -668,6 +668,8 @@ echo "Concatenating genome FASTAs for $taxon..."
 find "$genome_dir" -name "*_genomic.fna" -exec cat {} + > "$concatenated_genome"
 echo "Building BLAST DB for $taxon..."
 makeblastdb -in "$concatenated_genome" -dbtype nucl -out "$blast_db"
+find "$genome_dir" -type f -name "*_genomic.fna" -exec gzip -f {} +
+gzip -f "$concatenated_genome"
 local blast_output="${output_dir}/${safe_taxon}/iteration_${iteration}_draft_blast_results.txt"
 mkdir -p "$(dirname "$blast_output")"
 echo "Running BLAST for $taxon..."
