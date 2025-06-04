@@ -8,9 +8,10 @@ This tool is designed for estimating the prevalence of specific genes in bacteri
 * **Storage‑friendly metadata:** Because of the large storage requirements, genome sequence files used to build the BLAST database are **not** stored in this repository. Instead, `database/metadata` holds the assembly‑accession lists so users can re‑download any sequence on demand.  
 * **Pre‑built complete‑genome database:** A BLAST database built from complete genomes of the default seven Enterobacteriaceae genus is provided for quick, high‑quality searches and hosted on USDA Ag Data Commons. The script `build_EB_complete_genomes_database.sh` is also provided for reproducing or updating the default database. 
 * **Heavy mode (`‑H heavy` + `‑t <taxon_file>`):** Adds draft genomes to the analysis. Draft assemblies for each target taxon are downloaded with *ncbi‑genome‑download*, shuffled, and sampled in iterations (Cochran’s formula with finite‑population correction; ≤ 20 iterations) to capture diversity while keeping runtime reasonable.  
-* **Custom genome panel (`‑d <download_file>`):** Lets users work **outside** the default Enterobacteriaceae genus. Supply a text file (one genus per line) and the pipeline will download the corresponding **complete genomes**, build a bespoke BLAST database in real time, and then run either LIGHT or HEAVY mode against that database.
+* **Custom genome panel (`‑d <download_file>`):** Enables users to work outside the default Enterobacteriaceae genus or combine targets from both within and outside this group. Provide a plain text file with one taxon per line (e.g., genus, species, or serotype). The pipeline will download the corresponding complete genomes, build a custom BLAST database in real time, and run either LIGHT or HEAVY mode against that database.
 
-> **Note:** Building either the pre‑built archive or a large custom panel requires significant disk and CPU resources. Run these steps on an HPC system or a workstation with ≥ 250 GB free space.
+> **Note:** When using -d, you do not need to provide the -t flag for HEAVY mode—the custom panel already defines the target taxa.
+> **System requirements** Building either the pre‑built archive or a large custom panel requires significant disk and CPU resources. Run these steps on an HPC system or a workstation with at least 250 GB free space.
 
 ---
 
@@ -160,37 +161,37 @@ conda install -c bioconda <package_name>
 ### 1. Run default light mode with 95% of identity and 90% of coverage (no target (-t) is defined, so the pipeline will loop through all taxonomic group available in pre-built database)
 
 ```bash
-bash getprev.sh -g test_gene.fasta -i 95 -c 90 -q ceres -r 04:00:00 -m 16G -C 8
+bash getprev.sh -g test/test_gene.fasta -i 95 -c 90 -q ceres -r 04:00:00 -m 16G -C 8
 ```
 
 ### 2. Run with a single taxon target in light mode
 
 ```bash
-bash getprev.sh -g test_gene.fasta -t "Salmonella" -i 95 -c 90 -q ceres -r 04:00:00 -m 16G -C 8
+bash getprev.sh -g test/test_gene.fasta -t "Salmonella" -i 95 -c 90 -q ceres -r 04:00:00 -m 16G -C 8
 ```
 
 ### 3. Run heavy mode with multiple targets listed in a text file
 
 ```bash
-bash getprev.sh -g test_gene.fasta -t test_taxon.txt -q ceres -r 08:00:00 -m 32G -C 16 -H heavy
+bash getprev.sh -g test/test_gene.fasta -t test/test_taxon.txt -q ceres -r 08:00:00 -m 32G -C 16 -H heavy
 ```
 
 ### 4. Custom genome panel — light mode
 
 ```bash
-bash getprev.sh -g test_gene.fasta -d download_taxon.txt -q ceres -r 06:00:00 -m 24G -C 12
+bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 06:00:00 -m 24G -C 12
 ```
 
 ### 5. Custom genome panel — heavy mode
 
 ```bash
-bash getprev.sh -g test_gene.fasta -d download_taxon.txt -t custom_test_taxon.txt -q ceres -r 12:00:00 -m 48G -C 24 -H heavy
+bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 12:00:00 -m 48G -C 24 -H heavy
 ```
 
 ### 6. Overwrite previous results
 
 ```bash
-bash getprev.sh -g test_gene.fasta -q ceres -r 02:00:00 -m 8G -C 4 -O true
+bash getprev.sh -g test/test_gene.fasta -q ceres -r 02:00:00 -m 8G -C 4 -O true
 ```
 
 ### 7. Rebuild default EB database
@@ -206,11 +207,11 @@ sbatch build_EB_complete_genomes_database.sh
 
 *Note:* 
 - `-g` (gene FASTA) is always required.
-- `-t` (species target file) must be provided in heavy mode.
+- `-t` (species target file) must be provided in heavy mode for default Enterobacteriaceae database.
 - `-d` (custom genus panel file) is used to download genera outside the default Enterobacteriaceae set.
 - Ensure requested memory (`-m`) and runtime (`-r`) are appropriate for your HPC environment.
 - Building custom databases with `-d` should be performed on nodes with ≥250 GB available disk space.
-- Test input files (`test_gene.fasta`, `test_taxon.txt`, `download_taxon.txt`, and `custom_test_taxon.txt`) can be found in the `test/` directory.
+- Test input files (`test_gene.fasta`, `test_taxon.txt`, and `download_taxon.txt`) can be found in the `test/` directory.
 ---
 
 ## Output
