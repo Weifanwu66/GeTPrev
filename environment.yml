@@ -1,0 +1,10 @@
+name: getprev
+channels:
+ - bioconda
+ - conda-forge
+ - defaults
+dependencies:
+ - python=3.9
+ - ncbi-genome-download
+ - blast
+ - entrez-direct
