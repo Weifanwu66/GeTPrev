@@ -54,10 +54,32 @@ fi
 function get_species_list() {
 local target_genus="$1"
 local output_file="$2"
+local max_attempts=5
+local attempt=1
+local success=false
 mkdir -p "$(dirname "$output_file")"
-esearch -db taxonomy -query "${target_genus}[Subtree]" | efetch -format xml | xtract -pattern Taxon -element ScientificName | \
-awk 'NF == 2 && $1 ~ /^[A-Z][a-z]+$/ && $2 ~ /^[a-z]+$/ {print $0}' > "$output_file"
+while [[ $attempt -le $max_attempts ]]; do
+echo "Fetching species list for $target_genus (Attempt $attempt/$max_attempts)..."
+esearch -db taxonomy -query "${target_genus}[Subtree]" | \
+efetch -format xml | \
+xtract -pattern Taxon -element ScientificName | \
+awk 'NF == 2 && $1 ~ /^[A-Z][a-z]+$/ && $2 ~ /^[a-z]+$/ {print $0}' > "$output_file.tmp"
+if [[ -s "$output_file.tmp" ]]; then
+mv "$output_file.tmp" "$output_file"
 echo "Saved all species names of $target_genus to $output_file"
+success=true
+break
+else
+echo "Attempt $attempt failed or returned empty. Retrying after $((attempt * 3))s..."
+sleep $((attempt * 3))
+((attempt++))
+fi
+done
+if [[ "$success" != true ]]; then
+echo "ERROR: Failed to retrieve species list for $target_genus after $max_attempts attempts." >&2
+rm -f "$output_file.tmp"
+touch "$output_file"
+fi
 }
 
 # Build a function to download species-level genomes using ncbi-genome-download
@@ -220,14 +242,12 @@ mkdir -p "$genome_dir/Salmonella_bongori"
 mkdir -p "$genome_dir/unclassified"
 mapfile -t subspecies_list < "$subspecies_list_file"
 mapfile -t serotype_list < "$serotype_list_file"
-mapfile -t typhi_aliases < "$TYPHIMURIUM_LIST"
 mapfile -t mono_aliases < "$MONOPHASIC_TYPHIMURIUM_LIST"
 mapfile -t deduped_seros < "$DUPLICATE_SEROTYPE_LIST"
 for subsp in "${subspecies_list[@]}"; do
 [[ -z "$subsp" ]] && continue
 mkdir -p "$genome_dir/Salmonella_enterica/$subsp"
 if [[ "$subsp" == "enterica" ]]; then
-mkdir -p "$genome_dir/Salmonella_enterica/$subsp/Typhimurium"
 mkdir -p "$genome_dir/Salmonella_enterica/$subsp/monophasic_Typhimurium"
 mkdir -p "$genome_dir/Salmonella_enterica/$subsp/Typhi"
 for sero in "${serotype_list[@]}"; do
@@ -269,15 +289,6 @@ done
 if [[ "$matched_sero" == false && "$organism_name" =~ serovar[[:space:]]*Typhi([^a-zA-Z]|$) ]]; then
 target_dir="$base_path/Typhi"
 matched_sero=true
-fi
-if [[ "$matched_sero" == false ]]; then
-for alias in "${typhi_aliases[@]}"; do
-if [[ "$organism_name" == *"$alias"* ]]; then
-target_dir="$base_path/Typhimurium"
-matched_sero=true
-break
-fi
-done
 fi
 if [[ "$matched_sero" == false ]]; then
 for sero in "${serotype_list[@]}"; do
@@ -487,8 +498,10 @@ taxon_name=$(basename "$taxon_dir")
 [[ "$taxon_name" == "unclassified" ]] && continue
 echo "Processing: $taxon_name"
 combined_fasta="$taxon_dir/${taxon_name}_all_genomes.fna"
-find "$taxon_dir" -type f -name "*_genomic.fna" | while read -r file; do accession=$(basename "$file" | grep -oE 'GC[AF]_[0-9]+\.[0-9]+'); \
-awk -v acc="$accession" '/^>/{print ">" acc "|" substr($0,2); next} 1' "$file"; done > "$combined_fasta"
+find "$taxon_dir" -type f -name "*_genomic.fna" | while read -r file; do
+accession=$(basename "$file" | grep -oE 'GC[AF]_[0-9]+\.[0-9]+')
+awk -v acc="$accession" '/^>/{print ">" acc "|" substr($0,2); next} 1' "$file"
+done > "$combined_fasta"
 if [[ "$taxon_name" =~ ^Salmonella_enterica_subsp_([a-zA-Z0-9_]+)$ ]]; then
 db_name="Salmonella_enterica_subsp_${BASH_REMATCH[1]}"
 elif [[ "$taxon_name" =~ ^Salmonella_([A-Z][a-zA-Z0-9_]+)$ ]]; then
@@ -497,6 +510,15 @@ else
 db_name="$taxon_name"
 fi
 create_blastdb "$combined_fasta" "$output_dir/$db_name"
+find "$taxon_dir" -mindepth 1 -maxdepth 1 -type d | while read -r species_dir; do
+species_name=$(basename "$species_dir")
+species_fasta="$species_dir/${species_name}_all_genomes.fna"
+find "$species_dir" -type f -name "*_genomic.fna" | while read -r file; do
+accession=$(basename "$file" | grep -oE 'GC[AF]_[0-9]+\.[0-9]+')
+awk -v acc="$accession" '/^>/{print ">" acc "|" substr($0,2); next} 1' "$file"
+done > "$species_fasta"
+create_blastdb "$species_fasta" "$output_dir/$species_name"
+done
 done
 find "$input_dir" -type f \( -name "*_genomic.fna" -o -name "*_all_genomes.fna" \) | while read -r f; do gzip -f "$f" & done
 wait

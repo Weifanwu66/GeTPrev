@@ -21,11 +21,12 @@ DRAFT_BLAST_RESULT_DIR="${WORK_DIR}/result/draft_blast_results"
 FILTERED_DRAFT_BLAST_RESULT_DIR="${WORK_DIR}/result/filtered_draft_blast_results"
 OVERWRITE=false
 FORCE_REBUILD=false
+GET_ALL_SPECIES=false
 # job scheduler variables
 runtime=24:00:00; hpcmem=360GB; hpcthreads=72; hpc=F; queue=NA; account=NA
 # usage setup
 usage() {
-    echo "Usage: $0 -g GENE_FILE [-t TAXON_FILE] [-d DOWNLOAD_FILE] [-c COVERAGE] [-i IDENTITY] [-o OUTPUT_FILE] [-p HPC_CLUSTER] [-q QUEUE] [-r RUNTIME] [-m MEMORY] [-C THREADS] [-a ACCOUNT] [-H MODE] [-O OVERWRITE] [-F FORCE_REBUILD] [-h|--help]"
+    echo "Usage: $0 -g GENE_FILE [-t TAXON_FILE] [-d DOWNLOAD_FILE] [-c COVERAGE] [-i IDENTITY] [-o OUTPUT_FILE] [-p HPC_CLUSTER] [-q QUEUE] [-r RUNTIME] [-m MEMORY] [-C THREADS] [-a ACCOUNT] [-H MODE] [-O OVERWRITE] [-F FORCE_REBUILD] [--get-all-species] [-h|--help]"
     echo ""
     echo "Required arguments:"
     echo "-g GENE_FILE      : FASTA file containing target gene sequences."
@@ -44,8 +45,9 @@ usage() {
     echo "-a ACCOUNT        : SLURM account/project (if needed)."
     echo "-H MODE           : Analysis mode ('light' or 'heavy'). Default is light."
     echo "-O OVERWRITE      : Set to true to overwrite previous results (default: false)."
-    echo "-F FORCE_REBUILD : Set to true to rebuild previous custom complete genomes database (default: false)."
-echo "-h, --help        : Show this help message and exit."
+    echo "-F FORCE_REBUILD  : Set to true to rebuild previous custom complete genomes database (default: false)."
+    echo "--get-all-species : Automatically expand genus-level input to species classification if genus only during custom targets database construction (default: false)." 
+    echo "-h, --help        : Show this help message and exit."
 }
 # Parse argument (adapted)
 while [[ "$#" -gt 0 ]]; do
@@ -65,6 +67,7 @@ while [[ "$#" -gt 0 ]]; do
         -H) MODE="$2"; shift 2 ;;
         -O) OVERWRITE="$2"; shift 2 ;;
         -F) FORCE_REBUILD="$2"; shift 2 ;;
+        --get-all-species) GET_ALL_SPECIES=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Invalid option: $1"; usage; exit 1 ;;
     esac
@@ -135,14 +138,14 @@ sed -i "s/hpctasks/$hpcthreads/g" sge2.sh #user
 #lines 214,221 assume -g -c -i -o -H -O -t in 
 #user supplied arguments to getprev or getprev defaults
 sed -i \
-'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" -p T%g' \
+'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" --get-all-species -p T%g' \
 sge2.sh
 #write the needed variables to the sge template
 #the last variable tells EGP that ${"hpc"} = T
 #so that this entire while loop will be skipped
 #by the EGP resubmission
 sed -i \
-"s%vars%OVERWRITE='$OVERWRITE'; GENE_FILE='$GENE_FILE'; MIN_COVERAGE='$MIN_COVERAGE'; MIN_IDENTITY='$MIN_IDENTITY'; OUTPUT_FILE='$OUTPUT_FILE'; MODE='$MODE'; TAXON_FILE='$TAXON_FILE'; DOWNLOAD_FILE='$DOWNLOAD_FILE'; FORCE_REBUILD='$FORCE_REBUILD'%g" \
+"s%vars%OVERWRITE='$OVERWRITE'; GENE_FILE='$GENE_FILE'; MIN_COVERAGE='$MIN_COVERAGE'; MIN_IDENTITY='$MIN_IDENTITY'; OUTPUT_FILE='$OUTPUT_FILE'; MODE='$MODE'; TAXON_FILE='$TAXON_FILE'; DOWNLOAD_FILE='$DOWNLOAD_FILE'; FORCE_REBUILD='$FORCE_REBUILD'; GET_ALL_SPECIES='$GET_ALL_SPECIES'%g" \
 sge2.sh
 
 #make sure the user provided account is written to the template
@@ -171,14 +174,14 @@ sed -i "s/hpctasks/$hpcthreads/g" slurm2.sh #user
 sed -i 's/other/$other/g' slurm2.sh #local.
 #write the GEA command to the slurm template
 sed -i \
-'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" -p T%g' \
+'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" --get-all-species -p T%g' \
 slurm2.sh
 #write the needed variables to the slurm template
 #the last variable tells EGP that ${"hpc"} = T
 #so that this entire while loop will be skipped
 #by the EGP resubmission
 sed -i \
-"s%vars%OVERWRITE='$OVERWRITE'; GENE_FILE='$GENE_FILE'; MIN_COVERAGE='$MIN_COVERAGE'; MIN_IDENTITY='$MIN_IDENTITY'; OUTPUT_FILE='$OUTPUT_FILE'; MODE='$MODE'; TAXON_FILE='$TAXON_FILE'; DOWNLOAD_FILE='$DOWNLOAD_FILE'; FORCE_REBUILD='$FORCE_REBUILD'%g" \
+"s%vars%OVERWRITE='$OVERWRITE'; GENE_FILE='$GENE_FILE'; MIN_COVERAGE='$MIN_COVERAGE'; MIN_IDENTITY='$MIN_IDENTITY'; OUTPUT_FILE='$OUTPUT_FILE'; MODE='$MODE'; TAXON_FILE='$TAXON_FILE'; DOWNLOAD_FILE='$DOWNLOAD_FILE'; FORCE_REBUILD='$FORCE_REBUILD'; GET_ALL_SPECIES='$GET_ALL_SPECIES'%g" \
 slurm2.sh
 
 #make sure the user provided account is written to the template
@@ -227,7 +230,7 @@ exit 1
 fi
 # Ensure if heavy mode is enabled, a taxon file must be provided
 if [[ "$MODE" == "heavy" && -z "$TAXON_FILE" && -z "$DOWNLOAD_FILE" ]]; then
-echo "Error: A taxon file is required in heavy mode."
+echo "Error: A taxon file is required in heavy mode using default database."
 exit 1
 fi
 # Output directory setup
@@ -256,6 +259,15 @@ fi
 TOTAL_CPUS=$(get_cpus)
 MAX_PARALLEL_JOBS=$(( TOTAL_CPUS * 2 / 3 ))
 
+if [[ "$GET_ALL_SPECIES" == true ]]; then
+METADATA_FILE="$DATABASE_DIR/assembly_summary_bacteria.txt"
+echo "Downloading latest assembly metadata"
+wget -q -O "$METADATA_FILE" "https://ftp.ncbi.nlm.nih.gov/genomes/genbank/bacteria/assembly_summary.txt"
+if [[ "$MODE" == "heavy" ]]; then
+echo "WARNING: --get-all-species is enabled with heavy mode. It is recommended to include no more than 2 genera to avoid excessive runtime and disk usage."
+fi
+fi
+> "$GENOME_DIR/expanded_species_list.txt"
 while IFS= read -r raw_line || [ -n "$raw_line" ]; do
 taxon=$(echo "$raw_line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '\r')
 [[ -z "$taxon" ]] && continue
@@ -267,34 +279,35 @@ echo "Detected Salmonella enterica subspecies: $subsp"
 echo "$subsp" > "$GENOME_DIR/temp_subsp_list.txt"
 download_salmonella_subsp "$GENOME_DIR/temp_subsp_list.txt"
 rm -f "$GENOME_DIR/temp_subsp_list.txt"
-
 elif [[ "$taxon" =~ ^Salmonella( enterica subsp\.?\ enterica serovar)?[[:space:]]+([[:alnum:][:punct:]]+[[:space:]]?[[:alnum:][:punct:]]*)$ ]]; then
 serotype="${BASH_REMATCH[2]}"
 echo "Detected Salmonella serotype: $serotype"
 echo "$serotype" > "$GENOME_DIR/temp_serotype_list.txt"
 download_salmonella_serotype "$GENOME_DIR/temp_serotype_list.txt"
 rm -f "$GENOME_DIR/temp_serotype_list.txt"
-
 elif [[ "$taxon" =~ ^[A-Z][a-z]+\ [a-z]+$ ]]; then
 echo "Detected species: $taxon"
 download_species "$taxon" "$GENOME_DIR"
-
 elif [[ "$taxon" =~ ^[A-Z][a-z]+$ ]]; then
 echo "Detected genus: $taxon"
 GENUS_DIR="$GENOME_DIR/$taxon"
 mkdir -p "$GENUS_DIR"
 download_single_genus "$taxon" "$GENOME_DIR"
-# No species-level subgrouping
-
+if [[ "$GET_ALL_SPECIES" == true && "$taxon" =~ ^[A-Z][a-z]+$ ]]; then
+echo "Expanding genus $taxon to species level"
+SPECIES_LIST_FILE="$GENUS_DIR/species_list.txt"
+get_species_list "$taxon" "$SPECIES_LIST_FILE"
+classify_genus_by_metadata "$taxon"
+echo "$taxon" >> "$GENOME_DIR/expanded_species_list.txt"
+cat "$SPECIES_LIST_FILE" >> "$GENOME_DIR/expanded_species_list.txt"
+fi
 else
 echo "Unrecognized or unsupported taxon format: $taxon" >> "$FAILED_FLAG"
 fi
 ) &
-
 while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do sleep 1; done
 done < "$DOWNLOAD_FILE"
 wait
-
 echo "Building BLAST databases for custom panel"
 build_custom_blastdb "$GENOME_DIR" "$BLAST_DB_DIR"
 generate_directory_csv "$GENOME_DIR"
@@ -386,6 +399,8 @@ fi
 # Initialize TAXON_LIST
 if [[ -n "$TAXON_FILE" ]]; then
 TAXON_LIST=$(< "$TAXON_FILE")
+elif [[ "$GET_ALL_SPECIES" == true && -f "$GENOME_DIR/expanded_species_list.txt" ]]; then
+TAXON_LIST=$(< "$GENOME_DIR/expanded_species_list.txt")
 elif [[ -n "$DOWNLOAD_FILE" ]]; then
 TAXON_LIST=$(< "$DOWNLOAD_FILE")
 else
