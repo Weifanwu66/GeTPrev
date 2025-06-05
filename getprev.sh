@@ -415,7 +415,7 @@ GENE_WITH_HITS=$(echo "$GENE_WITH_HITS" | sort -u)
 # Process all genes in query gene file
 mapfile -t ALL_GENES < <(grep "^>" "$GENE_FILE" | sed 's/>//' | awk '{print $1}')
 for GENE_ID in "${ALL_GENES[@]}"; do
-if grep -qx "$GENE_ID" <<< "$GENE_WITH_HITS"; then
+if grep -qx -- "$GENE_ID" <<< "$GENE_WITH_HITS"; then
 COMPLETE_GENOMES_WITH_TARGET_GENES=$(awk -v gene="$GENE_ID" '$1 == gene {print $2}' "$FILTERED_BLAST_RESULT_DIR/filtered_${local_taxon}_complete_blast_results.txt" 2>/dev/null | sort -u | wc -l)
 if [[ "$MODE" == "heavy" && "$TOTAL_DRAFT_GENOMES" -gt 0 ]]; then
 TOTAL_DRAFT_GENOMES_WITH_TARGET_GENES=0

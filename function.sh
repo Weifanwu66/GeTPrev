@@ -143,7 +143,7 @@ echo "Saved all serotype names in $output_file"
 # Remove all Salmonella enterica subsp. enterica serovar prefix
 sed -i 's/Salmonella enterica subsp. enterica serovar //g' "$output_file"
 # Delete known serotype names names by name match that are already stored in monophasic_Typhimurium_list.txt and Typhimurium_list.txt
-grep -vFf "$DUPLICATE_SEROTYPE_LIST" "$output_file" > tmp && \
+grep -vFf -- "$DUPLICATE_SEROTYPE_LIST" "$output_file" > tmp && \
 mv tmp "$output_file"
 } 
 
@@ -232,7 +232,7 @@ mkdir -p "$genome_dir/Salmonella_enterica/$subsp/monophasic_Typhimurium"
 mkdir -p "$genome_dir/Salmonella_enterica/$subsp/Typhi"
 for sero in "${serotype_list[@]}"; do
 [[ -z "$sero" ]] && continue
-if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq "$sero"; then
+if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq -- "$sero"; then
 continue
 fi
 mkdir -p "$genome_dir/Salmonella_enterica/$subsp/$sero"
@@ -282,7 +282,7 @@ fi
 if [[ "$matched_sero" == false ]]; then
 for sero in "${serotype_list[@]}"; do
 if [[ "$organism_name" =~ serovar[[:space:]]*$sero([^a-zA-Z]|$) ]]; then
-if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq "$sero"; then
+if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq -- "$sero"; then
 continue
 fi
 safe_sero_name=$(echo "$sero" | tr -d "'\"" | tr -cs '[:alnum:]_:.-' '_' | sed 's/^_//;s/_$//')
@@ -308,7 +308,7 @@ subsp_dir="$genome_dir/Salmonella_enterica/$subsp"
 if [[ "$subsp" == "enterica" ]]; then
 for sero in "${serotype_list[@]}"; do
 [[ -z "$sero" ]] && continue
-if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq "$sero"; then
+if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq -- "$sero"; then
 continue
 fi
 sero_name=$(echo "$sero")
