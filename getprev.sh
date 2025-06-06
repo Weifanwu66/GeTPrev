@@ -429,14 +429,14 @@ else
 DRAFT_SAMPLE_SIZE=0
 ITERATIONS=0
 fi
-GENE_WITH_HITS=$(awk '{split($2, a, "|"); print a[1]}' "$FILTERED_BLAST_RESULT_DIR/filtered_${local_taxon}_complete_blast_results.txt" 2>/dev/null)
-[[ "$MODE" == "heavy" ]] && GENE_WITH_HITS+=$'\n'$(awk '{split($2, a, "|"); print a[1]}' "$FILTERED_DRAFT_BLAST_RESULT_DIR/$local_taxon"/* 2>/dev/null)
+GENE_WITH_HITS=$(awk '{print $1}' "$FILTERED_BLAST_RESULT_DIR/filtered_${local_taxon}_complete_blast_results.txt" 2>/dev/null)
+[[ "$MODE" == "heavy" ]] && GENE_WITH_HITS+=$'\n'$(awk '{print $1}' "$FILTERED_DRAFT_BLAST_RESULT_DIR/$local_taxon"/* 2>/dev/null)
 GENE_WITH_HITS=$(echo "$GENE_WITH_HITS" | sort -u)
 # Process all genes in query gene file
 mapfile -t ALL_GENES < <(grep "^>" "$GENE_FILE" | sed 's/>//' | awk '{print $1}')
 for GENE_ID in "${ALL_GENES[@]}"; do
 if grep -qx -- "$GENE_ID" <<< "$GENE_WITH_HITS" 2>/dev/null || true; then
-COMPLETE_GENOMES_WITH_TARGET_GENES=$(awk -v gene="$GENE_ID" '$1 == gene {print $2}' "$FILTERED_BLAST_RESULT_DIR/filtered_${local_taxon}_complete_blast_results.txt" 2>/dev/null | sort -u | wc -l)
+COMPLETE_GENOMES_WITH_TARGET_GENES=$(awk -v gene="$GENE_ID" '$1 == gene {split($2, a, "|"); print a[1]}' "$FILTERED_BLAST_RESULT_DIR/filtered_${local_taxon}_complete_blast_results.txt" 2>/dev/null | sort -u | wc -l)
 if [[ "$MODE" == "heavy" && "$TOTAL_DRAFT_GENOMES" -gt 0 ]]; then
 TOTAL_DRAFT_GENOMES_WITH_TARGET_GENES=0
 for ((i=1; i<="$ITERATIONS"; i++)); do
