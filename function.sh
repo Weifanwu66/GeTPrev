@@ -495,7 +495,17 @@ mkdir -p "$output_dir"
 echo "Building BLAST databases for custom panel from: $input_dir"
 find "$input_dir" -mindepth 1 -maxdepth 1 -type d | while read -r taxon_dir; do
 taxon_name=$(basename "$taxon_dir")
-[[ "$taxon_name" == "unclassified" ]] && continue
+if [[ "$taxon_name" == "unclassified" ]]; then
+parent_dir="$(dirname "$taxon_dir")"
+parent_genus="$(basename "$parent_dir")"
+if [[ "${GET_ALL_SPECIES,,}" == "true" && "$parent_dir" == "$input_dir"/* ]]; then
+taxon_name="${parent_genus}_unclassified"
+mv "$taxon_dir" "$parent_dir/$taxon_name"
+taxon_dir="$parent_dir/$taxon_name"
+else
+continue
+fi
+fi
 echo "Processing: $taxon_name"
 combined_fasta="$taxon_dir/${taxon_name}_all_genomes.fna"
 find "$taxon_dir" -type f -name "*_genomic.fna" | while read -r file; do
