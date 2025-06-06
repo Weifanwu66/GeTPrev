@@ -4,21 +4,41 @@
 This tool is designed for estimating the prevalence of specific genes in bacterial taxa, integrating NCBI genome retrieval, BLAST database construction, and automated query analysis.
 
 ## Features
+
 ### Genomic Data Acquisition
+
 * **Storage‑friendly metadata:** Because of the large storage requirements, genome sequence files used to build the BLAST database are **not** stored in this repository. Instead, `database/metadata` holds the assembly‑accession lists so users can re‑download any sequence on demand.  
+
 * **Pre‑built complete‑genome database:** A BLAST database built from complete genomes of the default seven Enterobacteriaceae genus is provided for quick, high‑quality searches and hosted on USDA Ag Data Commons. The script `build_EB_complete_genomes_database.sh` is also provided for reproducing or updating the default database. 
+
 * **Heavy mode (`‑H heavy` + `‑t <taxon_file>`):** Adds draft genomes to the analysis. Draft assemblies for each target taxon are downloaded with *ncbi‑genome‑download*, shuffled, and sampled in iterations (Cochran’s formula with finite‑population correction; ≤ 20 iterations) to capture diversity while keeping runtime reasonable.  
+
 * **Custom genome panel (`‑d <download_file>`):** Enables users to work outside the default Enterobacteriaceae genus or combine targets from both within and outside this group. Provide a plain text file with one taxon per line (e.g., genus, species, or serotype). The pipeline will download the corresponding complete genomes, build a custom BLAST database in real time, and run either LIGHT or HEAVY mode against that database.
 
 > **Note:** When using -d, you do not need to provide the -t flag for HEAVY mode—the custom panel already defines the target taxa.
-> **System requirements** Building either the pre‑built archive or a large custom panel requires significant disk and CPU resources. Run these steps on an HPC system or a workstation with at least 250 GB free space.
+> **System requirements** Building either the pre‑built archive or a large custom panel requires significant disk and CPU resources. Run these steps on an HPC system with at least 1 TB free space.
 
+### Advanced Options
+
+* **Overwrite results (`-O true`)**  
+  By default, if an output file already exists, the pipeline will skip that analysis. Use `-O true` to **force overwrite** of the existing output files.
+
+* **Force rebuild of custom database (`-F true`)**  
+  If a custom genome panel (`-d`) was previously built, the pipeline will skip rebuilding it unless forced. Use `-F true` to **delete and rebuild** all custom genome and BLAST database files from scratch.
+
+* **Expand all species under genus (`--get-all-species`)**  
+  When used with a genus in the `-d` file, this option will automatically retrieve **all species** under that genus using NCBI Taxonomy and classfiy these genomes into species level for each genus. It also generates an `expanded_species_list.txt` to serve as the actual target list.  
+  **⚠️ Recommended for up to 2 genus** when running in **heavy mode** (`-H heavy`) to avoid long runtimes and high disk usage.
+
+> These options are especially useful for power users working on broad taxonomic groups or managing reproducible BLAST database builds across runs.
 ---
 
-### Genome files Organization
+### Genome files Organization for Pre-built Default Database
+
 * Creates a structured directory hierarchy per genus → species → (for *Salmonella enterica*) subspecies → serotype. Unclassified genomes are placed in an `unclassified/` subfolder for each taxon.  
+
 * Complete‑genome downloads live under `complete_genome/`; draft‑genome iterations are stored separately under `draft_genome/`.  
-The script to download complete genomes and their corresponding BLAST DB is build_EB_complete_genomes_database.sh
+The script to download complete genomes and construct their corresponding BLAST DB is build_EB_complete_genomes_db.sh
 ```
 │   ├── Escherichia/
 │   │   ├── unclassified/
@@ -73,15 +93,21 @@ The script to download complete genomes and their corresponding BLAST DB is buil
 ---
 
 ### BLAST Query & Analysis
+
 * **Light mode (default):** Runs BLAST only against the complete‑genome database (pre‑built or custom `‑d`). Fastest, highest assembly quality.  
-* **Heavy mode:** Adds a draft‑genome database, dynamically constructed during runtime to improve prevalence estimates in clades with sparse complete genomes. Requires both `‑H heavy` and a species‑level target file via `‑t`.  
+
+* **Heavy mode:** Adds a draft‑genome database, dynamically constructed during runtime to improve prevalence estimates in clades with sparse complete genomes. Requires both `‑H heavy` and a target taxon file via `‑t`. If custom target feature is initiated (`-d`), no `-t` target taxon file needs to be provided.  
+
 * **Query genes:** Provide a multi‑FASTA file with one or many genes via `‑g`.  
-* **Filtering:** Results are filtered by user‑defined minimum identity (`‑I`) and coverage (`‑C`) thresholds.
+
+* **Filtering:** Results are filtered by user‑defined minimum identity (`‑i`) and coverage (`‑c`) thresholds.
 
 ---
 
 ### Gene prevalence calculation
+
 * **Light mode:** Prevalence is calculated from hits in complete genomes only.  
+
 * **Heavy mode:** Prevalence combines complete‑genome hits and the averaged result of up to 20 draft‑genome iterations, improving robustness to sampling bias.
 
 ---
@@ -93,8 +119,11 @@ GeTPrev is designed to run efficiently on high‑performance computing (HPC) sys
 Built‑in SLURM support enables:
 
 * **Automatic job submission**: GeTPrev can generate SLURM batch scripts internally when queues (`‑q`), resources (`‑m`, `‑r`), and node constraints are specified.
+
 * **Flexible resource requests**: Users can control memory, CPU cores, wall‑time, and partition selection through command‑line options.
+
 * **Robust parallelism**: Multiple `blastn` processes and download threads are automatically parallelized across available CPUs.
+
 * **Queue compatibility**: Tested on partitions like `ceres`, `short`, and `long` on SCINet clusters (Ceres, Atlas).
 
 > **Important:** It is recommended to run database‑building steps (`build_EB_complete_genomes_database.sh`, custom complete genome panels via `‑d`) on HPC nodes with ≥ 250 GB free storage and appropriate wall‑time requests (e.g., `‑r 12:00:00`).
@@ -126,7 +155,58 @@ squeue -u $USER
 # Check detailed information on a specific job
 scontrol show job <jobID>
 ```
+## Getting Started
+
+This guide walks you through setting up everything needed to run the **GeTPrev** pipeline, including Conda setup, cloning the repository, and installing dependencies. If you already have Conda installed, you can skip to the [Installation](#installation) section.
+
+---
+
+## Conda Setup (If Not Installed)
+
+If you do not already have Conda or Miniconda installed, follow the steps below to install **Miniconda** (recommended for a lightweight setup):
+
+### 1. Download Miniconda
+
+Go to the [official Miniconda installation page](https://docs.conda.io/en/latest/miniconda.html) and download the appropriate installer for your operating system.
+
+Or use the terminal (for Linux/macOS):
+
+```sh
+# For Linux
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+
+# For macOS
+curl -O https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
+```
+
+### 2. Run the Installer
+
+Once downloaded, run the installer script:
+
+```sh
+bash Miniconda3-latest-Linux-x86_64.sh   # or the macOS version if applicable
+```
+
+### 3. Restart Shell & Initialize Conda
+
+After installation, restart your terminal or manually initialize Conda by sourcing your shell configuration file:
+
+```sh
+# For Bash users
+source ~/.bashrc
+
+# For Zsh users
+source ~/.zshrc
+```
+
+To verify installation:
+
+```sh
+conda --version
+```
+
 ## Installation
+
 To run this pipeline, set up a Conda environment with the required dependencies.
 1. Clone the Repository
 ```sh
@@ -158,6 +238,7 @@ conda install -c bioconda <package_name>
 -----
 
 ## Example commands:
+
 ### 1. Run default light mode with 95% of identity and 90% of coverage (no target (-t) is defined, so the pipeline will loop through all taxonomic group available in pre-built database)
 
 ```bash
@@ -188,20 +269,25 @@ bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 0
 bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 12:00:00 -m 48G -C 24 -H heavy
 ```
 
-### 6. Overwrite previous results
+### 6. Force rebuilding the custom complete genomes database and overwrite previous results
 
 ```bash
-bash getprev.sh -g test/test_gene.fasta -q ceres -r 02:00:00 -m 8G -C 4 -O true
+bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 02:00:00 -m 64G -C 36 -F true -O true
 ```
 
-### 7. Rebuild default EB database
+### 7. Expand genus into species
+
+```bash
+bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 02:00:00 -m 128G -C 72 --get-all-species
+```
+
+### 8. Rebuild default EB database
 
 ```bash
 sbatch build_EB_complete_genomes_database.sh
 ```
 > ⚠️ This script downloads and formats the default Enterobacteriaceae database.  
 > It includes 7 genus: *Salmonella, Escherichia, Enterobacter, Klebsiella, Cronobacter, Citrobacter,* and *Shigella*.  
-> **⚠️ Note:** Rebuilding the database requires **at least 1.4 terabytes of storage**. Make sure you have adequate disk space before running this step.
 
 ---
 
