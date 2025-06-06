@@ -203,7 +203,7 @@ ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica sero
 find "$serotype_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
 if [[ "$serotype" == "Typhi" ]]; then
 for fna in "$serotype_dir"/*.fna; do
-if ! grep -Eiq "serovar Typhi([^a-zA-Z]|$)" "$fna"; then
+if ! grep -Eiq "serovar Typhi([^a-zA-Z] 2>/dev/null || true|$)" "$fna"; then
 echo "Deleting non-Typhi genome: $(basename "$fna")"
 rm -f "$fna"
 fi
@@ -211,7 +211,7 @@ done
 fi
 if [[ "$serotype" == "Typhimurium" ]]; then
 for fna in "$serotype_dir"/*.fna; do
-if ! grep -Eiq "serovar Typhimurium([^[:alpha:]]|$)" "$fna" || grep -Eiq "serovar Typhimurium.*var\." "$fna"; then
+if ! grep -Eiq "serovar Typhimurium([^[:alpha:]] 2>/dev/null || true|$)" "$fna" || grep -Eiq "serovar Typhimurium.*var\." "$fna" 2>/dev/null || true; then
 echo "Deleting non-Typhimurium genome: $(basename "$fna")"
 rm -f "$fna"
 fi
@@ -252,7 +252,7 @@ mkdir -p "$genome_dir/Salmonella_enterica/$subsp/monophasic_Typhimurium"
 mkdir -p "$genome_dir/Salmonella_enterica/$subsp/Typhi"
 for sero in "${serotype_list[@]}"; do
 [[ -z "$sero" ]] && continue
-if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq -- "$sero"; then
+if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq -- "$sero" 2>/dev/null || true; then
 continue
 fi
 mkdir -p "$genome_dir/Salmonella_enterica/$subsp/$sero"
@@ -293,7 +293,7 @@ fi
 if [[ "$matched_sero" == false ]]; then
 for sero in "${serotype_list[@]}"; do
 if [[ "$organism_name" =~ serovar[[:space:]]*$sero([^a-zA-Z]|$) ]]; then
-if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq -- "$sero"; then
+if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq -- "$sero" 2>/dev/null || true; then
 continue
 fi
 safe_sero_name=$(echo "$sero" | tr -d "'\"" | tr -cs '[:alnum:]_:.-' '_' | sed 's/^_//;s/_$//')
@@ -319,7 +319,7 @@ subsp_dir="$genome_dir/Salmonella_enterica/$subsp"
 if [[ "$subsp" == "enterica" ]]; then
 for sero in "${serotype_list[@]}"; do
 [[ -z "$sero" ]] && continue
-if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq -- "$sero"; then
+if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq -- "$sero" 2>/dev/null || true; then
 continue
 fi
 sero_name=$(echo "$sero")

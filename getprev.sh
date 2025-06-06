@@ -298,8 +298,13 @@ echo "Expanding genus $taxon to species level"
 SPECIES_LIST_FILE="$GENUS_DIR/species_list.txt"
 get_species_list "$taxon" "$SPECIES_LIST_FILE"
 classify_genus_by_metadata "$taxon"
-echo "$taxon" >> "$GENOME_DIR/expanded_species_list.txt"
-cat "$SPECIES_LIST_FILE" >> "$GENOME_DIR/expanded_species_list.txt"
+cp "$DOWNLOAD_FILE" "$GENOME_DIR/expanded_species_list.txt"
+find "$GENUS_DIR" -mindepth 1 -maxdepth 1 -type d ! -name "unclassified" | while read -r species_dir; do
+if compgen -G "$species_dir/*_genomic.fna" > /dev/null; then
+species_name=$(basename "$species_dir" | tr '_' ' ')
+echo "$species_name" >> "$GENOME_DIR/expanded_species_list.txt"
+fi
+done
 fi
 else
 echo "Unrecognized or unsupported taxon format: $taxon" >> "$FAILED_FLAG"
@@ -400,7 +405,7 @@ fi
 if [[ -n "$TAXON_FILE" ]]; then
 TAXON_LIST=$(< "$TAXON_FILE")
 elif [[ "$GET_ALL_SPECIES" == true && -f "$GENOME_DIR/expanded_species_list.txt" ]]; then
-TAXON_LIST=$(< "$GENOME_DIR/expanded_species_list.txt")
+TAXON_LIST=$(< "$CUSTOM_GENOMES_DIR/expanded_species_list.txt")
 elif [[ -n "$DOWNLOAD_FILE" ]]; then
 TAXON_LIST=$(< "$DOWNLOAD_FILE")
 else
@@ -430,7 +435,7 @@ GENE_WITH_HITS=$(echo "$GENE_WITH_HITS" | sort -u)
 # Process all genes in query gene file
 mapfile -t ALL_GENES < <(grep "^>" "$GENE_FILE" | sed 's/>//' | awk '{print $1}')
 for GENE_ID in "${ALL_GENES[@]}"; do
-if grep -qx -- "$GENE_ID" <<< "$GENE_WITH_HITS"; then
+if grep -qx -- "$GENE_ID" <<< "$GENE_WITH_HITS" 2>/dev/null || true; then
 COMPLETE_GENOMES_WITH_TARGET_GENES=$(awk -v gene="$GENE_ID" '$1 == gene {print $2}' "$FILTERED_BLAST_RESULT_DIR/filtered_${local_taxon}_complete_blast_results.txt" 2>/dev/null | sort -u | wc -l)
 if [[ "$MODE" == "heavy" && "$TOTAL_DRAFT_GENOMES" -gt 0 ]]; then
 TOTAL_DRAFT_GENOMES_WITH_TARGET_GENES=0
