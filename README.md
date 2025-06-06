@@ -7,6 +7,12 @@ This tool is designed for estimating the prevalence of specific genes in bacteri
 
 ### Genomic Data Acquisition
 
+> ⚠️ **Note:** Users must choose between:
+>
+> - **Pre-built default database**: Use the included curated BLAST database of complete genomes from seven Enterobacteriaceae genus.
+> - **Custom genome panel (`-d`)**: Create your own complete-genome BLAST database using any bacterial taxon.
+>
+
 * **Storage‑friendly metadata:** Because of the large storage requirements, genome sequence files used to build the BLAST database are **not** stored in this repository. Instead, `database/metadata` holds the assembly‑accession lists so users can re‑download any sequence on demand.  
 
 * **Pre‑built complete‑genome database:** A BLAST database built from complete genomes of the default seven Enterobacteriaceae genus is provided for quick, high‑quality searches and hosted on USDA Ag Data Commons. The script `build_EB_complete_genomes_database.sh` is also provided for reproducing or updating the default database. 
