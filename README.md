@@ -102,7 +102,7 @@ The script to download complete genomes and construct their corresponding BLAST 
 
 * **Light mode (default):** Runs BLAST only against the complete‑genome database (pre‑built or custom `‑d`). Fastest, highest assembly quality.  
 
-* **Heavy mode:** Adds a draft‑genome database, dynamically constructed during runtime to improve prevalence estimates in clades with sparse complete genomes. Requires both `‑H heavy` and a target taxon file via `‑t`. If custom target feature is initiated (`-d`), no `-t` target taxon file needs to be provided.  
+* **Heavy mode:** Adds a draft‑genome database, dynamically constructed during runtime to improve prevalence estimates in taxonomic groups with sparse complete genomes. Requires both `‑H heavy` and a target taxon file via `‑t`. If custom target feature is initiated (`-d`), no `-t` target taxon file needs to be provided.  
 
 * **Query genes:** Provide a multi‑FASTA file with one or many genes via `‑g`.  
 
@@ -292,7 +292,7 @@ bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 0
 ```bash
 sbatch build_EB_complete_genomes_database.sh
 ```
-> ⚠️ This script downloads and formats the default Enterobacteriaceae database.  
+> This script downloads and formats the default Enterobacteriaceae database.  
 > It includes 7 genus: *Salmonella, Escherichia, Enterobacter, Klebsiella, Cronobacter, Citrobacter,* and *Shigella*.  
 
 ---
