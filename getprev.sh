@@ -185,7 +185,7 @@ sed -i "s/RAM/$hpcmem/g" slurm2.sh #user
 sed -i "s/hpctasks/$hpcthreads/g" slurm2.sh #user
 sed -i 's/other/$other/g' slurm2.sh #local.
 #write the GEA command to the slurm template
-if [[ "$GET_ALL_SPECIES" == true ]]
+if [[ "$GET_ALL_SPECIES" == true ]]; then
 sed -i \
 's%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" --get-all-species -p T%g' \
 slurm2.sh
