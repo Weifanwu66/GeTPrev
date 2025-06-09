@@ -1,11 +1,30 @@
 #!/bin/bash
-WORK_DIR="$(pwd)"
-MONOPHASIC_TYPHIMURIUM_LIST="$WORK_DIR/database/monophasic_Typhimurium_list.txt"
-DUPLICATE_SEROTYPE_LIST="$WORK_DIR/database/duplicate_sal_serotypes.txt"
-METADATA_FILE="$WORK_DIR/database/assembly_summary_bacteria.txt"
-BLAST_DB_DIR="$WORK_DIR/database/complete_blast_db"
+WORKDIR="$(pwd)"
+MONOPHASIC_TYPHIMURIUM_LIST="$WORKDIR/database/monophasic_Typhimurium_list.txt"
+DUPLICATE_SEROTYPE_LIST="$WORKDIR/database/duplicate_sal_serotypes.txt"
+METADATA_FILE="$WORKDIR/database/assembly_summary_bacteria.txt"
+BLAST_DB_DIR="$WORKDIR/database/complete_blast_db"
 ASSEMBLY_LEVEL="complete"
-# Get CPU count (SLURM-aware)
+
+# check if dependencies are all installed
+function check_dependencies() {
+local missing=0
+local deps=(blastn makeblastdb ncbi-genome-download esearch efetch xtract)
+for cmd in "${deps[@]}"; do
+if ! command -v "$cmd" >/dev/null 2>&1; then
+echo "error: Required command '$cmd' not found in PATH" >&2
+missing=1
+fi
+done
+if (( missing )); then
+echo "One or more dependencies are missing. Please activate the correct environment." >&2
+exit 1
+else
+echo "All dependencies are installed."
+fi
+}
+
+# get CPU count
 function get_cpus() {
 if [[ -n "${SLURM_CPUS_ON_NODE:-}" ]]; then
 echo "$SLURM_CPUS_ON_NODE"
@@ -13,8 +32,23 @@ else
 nproc
 fi
 }
-# Build a function to download genus-level genomes using ncbi-genome-download
-# Download a single genus
+
+# protection mechanism with download retry
+function download_with_retry() {
+local attempts="${RETRY_ATTEMPTS:-3}"
+local delay="${RETRY_DELAY:-5}"
+local count=1
+while (( count <= attempts )); do
+"$@" && return 0
+echo "Attempt $count/$attempts failed for: $*" >&2
+sleep "$delay"
+((count++))
+done
+echo "Command failed after $attempts attempts: $*" >> "$FAILED_FLAG"
+return 1
+}
+
+# download genus-level genomes
 function download_single_genus() {
 local genus="$1"
 local output_dir="$2"
@@ -25,7 +59,7 @@ return
 fi
 mkdir -p "$genus_dir"
 echo "Downloading genus: $genus"
-ncbi-genome-download bacteria --genera "$genus" --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$genus_dir" --verbose --flat-output
+download_with_retry ncbi-genome-download bacteria --genera "$genus" --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$genus_dir" --verbose --flat-output
 find "$genus_dir" -type f -name "*_genomic.fna.gz" -exec gzip -d {} \;
 echo "Downloaded and organized genomes for $genus"
 }
@@ -50,7 +84,7 @@ download_single_genus "$input" "$output_dir"
 fi
 }
 
-# Build a function to get all species names under each target genus
+# get all species names under each target genus
 function get_species_list() {
 local target_genus="$1"
 local output_file="$2"
@@ -82,7 +116,7 @@ touch "$output_file"
 fi
 }
 
-# Build a function to download species-level genomes using ncbi-genome-download
+# download species-level genomes
 function download_species() {
 local target_input="$1"
 local output_dir="$2"
@@ -100,7 +134,7 @@ echo "Genomes already exist for $species, skipping downloading"
 return
 fi
 echo "Downloading genomes for $species"
-ncbi-genome-download bacteria --genera "$species" --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$species_dir" --flat-output --verbose
+download_with_retry ncbi-genome-download bacteria --genera "$species" --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$species_dir" --flat-output --verbose
 find "$species_dir" -type f -name "*_genomic.fna.gz" -exec gzip -d {} \;
 if [[ -z "$(find "$species_dir" -maxdepth 1 -type f -name "*_genomic.fna" 2>/dev/null)" ]]; then
 echo "No genomes found for $species. Remove empty directory."
@@ -120,7 +154,7 @@ fi
 echo "Downloaded and organized species genomes"
 }
 
-# Build a function to get all subspecies names under Salmonella enterica
+# get all subspecies names under Salmonella enterica
 function get_salmonella_subsp_list() {
 local output_file="$1"
 local output_dir
@@ -144,7 +178,7 @@ echo "Genomes already exist for Salmonella enterica subsp. $subspecies"
 continue
 fi
 echo "Downloading genomes for Salmonella enterica subsp. $subspecies"
-ncbi-genome-download bacteria --genera "Salmonella enterica subsp. $subspecies" \
+download_with_retry ncbi-genome-download bacteria --genera "Salmonella enterica subsp. $subspecies" \
  --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$subspecies_dir" --verbose --flat-output
 find "$subspecies_dir" -type f -name "*_genomic.fna.gz" -exec gzip -d {} \;
 if [[ -z "$(find "$subspecies_dir" -maxdepth 1 -type f -name "*_genomic.fna" 2>/dev/null)" ]]; then
@@ -154,7 +188,7 @@ fi
 done < "$subspecies_list_file"
 }
 
-# Build a function to download Salmonella serotype
+# get all Salmonella serotype names
 function get_salmonella_serotype_list() {
 local output_file="$1"
 local output_dir
@@ -162,13 +196,14 @@ output_dir=$(dirname "$output_file")
 mkdir -p "$output_dir"
 esearch -db taxonomy -query "Salmonella enterica subsp. enterica[Subtree]" | efetch -format xml | xtract -pattern Taxon -element ScientificName | grep -v -E "str\.|var\." | sort -u | grep -v "Salmonella enterica subsp. enterica$" > "$output_file"
 echo "Saved all serotype names in $output_file"
-# Remove all Salmonella enterica subsp. enterica serovar prefix
+# remove all Salmonella enterica subsp. enterica serovar prefix
 sed -i 's/Salmonella enterica subsp. enterica serovar //g' "$output_file"
-# Delete known serotype names names by name match that are already stored in monophasic_Typhimurium_list.txt and Typhimurium_list.txt
+# delete known serotype names names by name match that are already stored in monophasic_Typhimurium_list.txt and Typhimurium_list.txt
 grep -vFf -- "$DUPLICATE_SEROTYPE_LIST" "$output_file" > tmp && \
 mv tmp "$output_file"
 } 
 
+# download Salmonella serotypes
 function download_salmonella_serotype() {
 local serotype_list_file="$1"
 local total_cpus=$(get_cpus)
@@ -190,7 +225,7 @@ echo "Downloading all monophasic Typhimurium genomes"
 while read -r mono; do
 [[ -z "$mono" ]] && continue
 echo "Downloading: $mono"
-ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $mono" \
+download_with_retry ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $mono" \
  --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$serotype_dir" --flat-output
 done < "$MONOPHASIC_TYPHIMURIUM_LIST"
 find "$serotype_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
@@ -198,12 +233,12 @@ find "$serotype_dir" -type f -name "*.fna" -exec grep -Eil "serovar 43:a:1,7" {}
 return
 fi
 echo "Downloading genomes for: Salmonella enterica subsp. enterica serovar $serotype"
-ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $serotype" \
+download_with_retry ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $serotype" \
  --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$serotype_dir" --flat-output
 find "$serotype_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
 if [[ "$serotype" == "Typhi" ]]; then
 for fna in "$serotype_dir"/*.fna; do
-if ! grep -Eiq "serovar Typhi([^a-zA-Z] 2>/dev/null || true|$)" "$fna"; then
+if ! grep -Eiq "serovar Typhi([^a-zA-Z]|$)" "$fna" 2>/dev/null || true; then
 echo "Deleting non-Typhi genome: $(basename "$fna")"
 rm -f "$fna"
 fi
@@ -211,7 +246,7 @@ done
 fi
 if [[ "$serotype" == "Typhimurium" ]]; then
 for fna in "$serotype_dir"/*.fna; do
-if ! grep -Eiq "serovar Typhimurium([^[:alpha:]] 2>/dev/null || true|$)" "$fna" || grep -Eiq "serovar Typhimurium.*var\." "$fna" 2>/dev/null || true; then
+if ! grep -Eiq "serovar Typhimurium([^[:alpha:]]|$)" "$fna" 2>/dev/null || grep -Eiq "serovar Typhimurium.*var\." "$fna" 2>/dev/null || true; then
 echo "Deleting non-Typhimurium genome: $(basename "$fna")"
 rm -f "$fna"
 fi
@@ -232,6 +267,7 @@ wait
 echo "Serotype downloads complete."
 }
 
+# classify Salmonella genus into sub-levels based on metadata
 function classify_salmonella_by_metadata() {
 local subspecies_list_file="$1"
 local serotype_list_file="$2"
@@ -285,7 +321,7 @@ matched_sero=true
 break
 fi
 done
-# Match Typhi by regex
+# match Typhi by regex
 if [[ "$matched_sero" == false && "$organism_name" =~ serovar[[:space:]]*Typhi([^a-zA-Z]|$) ]]; then
 target_dir="$base_path/Typhi"
 matched_sero=true
@@ -336,6 +372,7 @@ done
 echo "Finished classifying Salmonella genomes."
 }
 
+# classify other genus into species level based on metadata
 function classify_genus_by_metadata() {
 local genus="$1"
 local genome_dir="$(pwd)/database/complete_genomes/$genus"
@@ -379,6 +416,7 @@ done
 echo "Finished classifying $genus genomes."
 }
 
+# generate genome list for each directory
 function generate_directory_csv() {
 local base_dir="$1"
 echo "[$(date)] Generating genomes_list.csv under $base_dir"
@@ -402,6 +440,7 @@ echo "[$(date)] Saved: $output_csv"
 done
 }
 
+# check for duplicates
 function sanity_check_unique_genomes() {
 local genome_dir="$1"
 local temp_all_files="$WORKDIR/all_fasta_files.txt"
@@ -422,6 +461,7 @@ fi
 rm -f "$temp_all_files" "$temp_all_accessions"
 }
 
+# create blastdb
 function create_blastdb() {
 local INPUT_FASTA="$1"
 local DB_PATH="$2"
@@ -525,6 +565,7 @@ wait
 echo "Finished building custom BLAST databases"
 }
 
+# clean up Salmonella serotype names
 function extract_taxon_info() {
 local input="$1"
 local taxon_name=""
@@ -539,6 +580,7 @@ fi
 echo "$taxon_name"
 }
 
+# delete genomes don't belong to that taxonomic group falsely downloaded by ncbi-genome-download
 function get_strict_accessions() {
 local target_name="$1" 
 local accession_column=1
@@ -550,6 +592,7 @@ tolower($name_col) !~ /var\./ {print $acc_col
   }' "$METADATA_FILE"
 }
 
+# count the total downloaded (screened) genomes of a taxonomic group
 function get_total_genomes_count() {
 local input="$1"
 local assembly_level="$2"
@@ -598,7 +641,7 @@ fi
 echo "$total_genomes"
 }
 
-
+# decide the sample size per iteration and the number of iterations using Cochran's formula for draft genomes
 function calculate_sample_size_and_iterations(){
 local total_genomes="$1"
 local max_iterations=20
@@ -615,10 +658,10 @@ local Z=1.96
 local p=0.5
 local e=0.05
 local n0=$(echo "scale=6; ($Z^2 * $p * (1 - $p)) / ($e^2)" | bc -l)
-# Finite population correction (FPC)
+# finite population correction (FPC)
 local sample_size=$(echo "scale=6; ($n0 * $total_genomes) / ($total_genomes + $n0 -1)" | bc -l)
 sample_size=$(echo "$sample_size" | awk '{printf "%.0f", $1}')
-# Compute number of iterations using square-root scaling
+# compute number of iterations using square-root scaling
 if [[ "$sample_size" -gt 0 ]]; then
 local iterations=$(echo "scale=6; sqrt($total_genomes / (2 * $sample_size))" | bc -l)
 iterations=$(echo "$iterations" | awk '{printf "%.0f", $1}')
@@ -633,6 +676,7 @@ fi
 echo "$sample_size $iterations"
 }
 
+# download random draft genomes
 function download_random_draft_genomes() {
 local input="$1"
 local sample_size="$2"
@@ -663,7 +707,7 @@ accessions=$(ncbi-genome-download bacteria --genera "$query" --assembly-level co
 fi
 local valid_accessions=$(echo "$accessions" | grep -E '^GCA_[0-9]+\.[0-9]+$' | shuf -n "$sample_size")
 echo "$valid_accessions" > "${iteration_dir}/selected_accessions.txt"
-ncbi-genome-download bacteria --assembly-accessions "${iteration_dir}/selected_accessions.txt" --formats fasta --assembly-level contig --section genbank --output-folder "$iteration_dir" --flat-output
+download_with_retry ncbi-genome-download bacteria --assembly-accessions "${iteration_dir}/selected_accessions.txt" --formats fasta --assembly-level contig --section genbank --output-folder "$iteration_dir" --flat-output
 find "$iteration_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
 }
 
@@ -699,7 +743,7 @@ blastn -query "$query_gene" -db "$blast_db" -out "$blast_output" -outfmt "6 qseq
 -perc_identity "$perc_identity" -max_target_seqs 10000
 echo "BLAST results saved to: $blast_output"
 else
-# Skip empty lines
+# skip empty lines
 [[ -z "$taxon" ]] && return
 local blast_db_name="${taxon// /_}"
 blast_db_name="${blast_db_name//./}"
@@ -716,7 +760,7 @@ echo "BLAST analysis completed. Results saved in: $output_dir"
 }
 
 function filter_blast_results() {
-local blast_result_file="$1"  # Full path containing blast results
+local blast_result_file="$1"  # full path containing blast results
 local output_dir="$2"
 local coverage_threshold="$3"
 local genome_type="$4"

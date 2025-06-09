@@ -20,7 +20,7 @@ SEROTYPE_LIST_FILE="$GENOME_DIR/Salmonella/salmonella_serotype_list.txt"
 SUBSPECIES_LIST_FILE="$GENOME_DIR/Salmonella/salmonella_subspecies_list.txt"
 METADATA_FILE="$DATABASE_DIR/assembly_summary_bacteria.txt"
 export FORCE_UPDATE="true"
-
+source "${WORKDIR}/function.sh" || { echo "Error sourcing function.sh" >&2; exit 1; }
 mkdir -p "$GENOME_DIR"
 mkdir -p "$BLAST_DB_DIR"
 > "$FAILED_FLAG"
@@ -33,9 +33,7 @@ fi
 
 # Download latest metadata
 echo "[$(date '+%F %T')] Downloading latest assembly metadata"
-wget -O "$METADATA_FILE" "https://ftp.ncbi.nlm.nih.gov/genomes/genbank/bacteria/assembly_summary.txt"
-
-source "${WORKDIR}/function.sh"
+download_with_retry wget -O "$METADATA_FILE" "https://ftp.ncbi.nlm.nih.gov/genomes/genbank/bacteria/assembly_summary.txt"
 TOTAL_CPUS=$(get_cpus)
 MAX_PARALLEL_JOBS=$(( TOTAL_CPUS * 2 / 3 ))
 max_parallel_genus=$(( MAX_PARALLEL_JOBS / 6 ))

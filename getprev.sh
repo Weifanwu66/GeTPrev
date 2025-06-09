@@ -3,22 +3,22 @@
 MODE="light"
 MIN_COVERAGE=80
 MIN_IDENTITY=90
-WORK_DIR=$(pwd)
+WORKDIR=$(pwd)
 TAXON_FILE=""
 GENE_FILE=""
 DOWNLOAD_FILE=""
-FAILED_FLAG="${WORK_DIR}/build_custom_db_failed.flag"
+FAILED_FLAG="${WORKDIR}/build_custom_db_failed.flag"
 > "$FAILED_FLAG"
-OUTPUT_FILE="${WORK_DIR}/result/gene_summary.csv"
-DATABASE_DIR="${WORK_DIR}/database"
+OUTPUT_FILE="${WORKDIR}/result/gene_summary.csv"
+DATABASE_DIR="${WORKDIR}/database"
 BLAST_DB_DIR="${DATABASE_DIR}/complete_blast_db"
 CUSTOM_GENOMES_DIR="${DATABASE_DIR}/complete_genomes"
-BLAST_RESULT_DIR="${WORK_DIR}/result/complete_blast_results"
-FILTERED_BLAST_RESULT_DIR="${WORK_DIR}/result/filtered_complete_blast_results"
+BLAST_RESULT_DIR="${WORKDIR}/result/complete_blast_results"
+FILTERED_BLAST_RESULT_DIR="${WORKDIR}/result/filtered_complete_blast_results"
 DRAFT_GENOMES_DIR="${DATABASE_DIR}/draft_genomes"
 DRAFT_BLAST_DB_DIR="${DATABASE_DIR}/draft_blast_db"
-DRAFT_BLAST_RESULT_DIR="${WORK_DIR}/result/draft_blast_results"
-FILTERED_DRAFT_BLAST_RESULT_DIR="${WORK_DIR}/result/filtered_draft_blast_results"
+DRAFT_BLAST_RESULT_DIR="${WORKDIR}/result/draft_blast_results"
+FILTERED_DRAFT_BLAST_RESULT_DIR="${WORKDIR}/result/filtered_draft_blast_results"
 OVERWRITE=false
 FORCE_REBUILD=false
 GET_ALL_SPECIES=false
@@ -72,7 +72,13 @@ while [[ "$#" -gt 0 ]]; do
         *) echo "Invalid option: $1"; usage; exit 1 ;;
     esac
 done
-
+# convert key file paths to absolute form
+GENE_FILE="$(readlink -f "$GENE_FILE")"
+[[ -n "$TAXON_FILE" ]] && TAXON_FILE="$(readlink -f "$TAXON_FILE")"
+[[ -n "$DOWNLOAD_FILE" ]] && DOWNLOAD_FILE="$(readlink -f "$DOWNLOAD_FILE")"
+OUTPUT_FILE="$(readlink -f "$OUTPUT_FILE")"
+source "${WORKDIR}/function.sh" || { echo "Error sourcing function.sh" >&2; exit 1; }
+check_dependencies
 #adapted from GEAbash_v1.0.0; seems to be working as expected
 #while getopts ':g:t::c::i::o::p::q::r::m::C::a::H::O::h::' flag; do
 #  case "${flag}" in
@@ -121,8 +127,8 @@ fi
 ###if sge...
 if [[ " ${submsys} " = " sge " ]]
 #alert the user
-then echo -n "preparing to run getprev in hpc cluster mode. "
-echo -n "getprev log outputs will be in the hpc submission system "
+then echo -n "preparing to run GeTPrev in hpc cluster mode. "
+echo -n "GeTPrev log outputs will be in the hpc submission system "
 echo "log files for sge. e.g., getprev.e* & getprev.o*"
 #edit the sge template with local variables and user arguments
 sed -i "s/name/sge2_getprev/g" sge2.sh #local
@@ -137,8 +143,12 @@ sed -i "s/hpctasks/$hpcthreads/g" sge2.sh #user
 #user supplied arguments to getprev or getprev defaults
 #lines 214,221 assume -g -c -i -o -H -O -t in 
 #user supplied arguments to getprev or getprev defaults
+ALL_SPECIES_FLAG=""
+if [[ "$GET_ALL_SPECIES" == true ]]; then
+ALL_SPECIES_FLAG="--get-all-species"
+fi
 sed -i \
-'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" --get-all-species -p T%g' \
+'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" $ALL_SPECIES_FLAG -p T%g' \
 sge2.sh
 #write the needed variables to the sge template
 #the last variable tells EGP that ${"hpc"} = T
@@ -162,8 +172,8 @@ qsub sge2.sh
 exit 0
 
 ###if slurm...
-else echo -n "preparing to run EGP in hpc cluster mode. "
-echo -n "EGP log outputs will be in the hpc submission system "
+else echo -n "preparing to run GeTPrev in hpc cluster mode. "
+echo -n "GeTPrev log outputs will be in the hpc submission system "
 echo "log files for slurm. e.g., slurm2-*.out"
 #edit the slurm template with local variables and user arguments
 sed -i "s/name/slurm2_getprev/g" slurm2.sh #local
@@ -174,7 +184,7 @@ sed -i "s/hpctasks/$hpcthreads/g" slurm2.sh #user
 sed -i 's/other/$other/g' slurm2.sh #local.
 #write the GEA command to the slurm template
 sed -i \
-'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" --get-all-species -p T%g' \
+'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" $ALL_SPECIES_FLAG -p T%g' \
 slurm2.sh
 #write the needed variables to the slurm template
 #the last variable tells EGP that ${"hpc"} = T
@@ -201,9 +211,9 @@ fi
 #finish the if statement started line 170.
 fi
 #if the user has NOT specified a queue then prepare
-#to run EGP normally
+#to run GeTPrev normally
 if [ $queue == "NA" ]
-then echo "EGP continuing without job submission system"
+then echo "GeTPrev continuing without job submission system"
 #if a job submission system is detected,
 #alert the user and exit with error.
 if [ -n "$(sinfo 2>/dev/null)" ]
@@ -235,7 +245,6 @@ exit 1
 fi
 # Output directory setup
 mkdir -p "$BLAST_RESULT_DIR" "$FILTERED_BLAST_RESULT_DIR"
-source "${WORK_DIR}/function.sh" || { echo "Error sourcing function.sh". exit 1; }
 # Handle custom download if provided
 if [[ -n "${DOWNLOAD_FILE:-}" ]]; then
 echo "Custom panel download requested."
@@ -260,14 +269,15 @@ TOTAL_CPUS=$(get_cpus)
 MAX_PARALLEL_JOBS=$(( TOTAL_CPUS * 2 / 3 ))
 
 if [[ "$GET_ALL_SPECIES" == true ]]; then
+> "$GENOME_DIR/expanded_species_list.txt"
 METADATA_FILE="$DATABASE_DIR/assembly_summary_bacteria.txt"
 echo "Downloading latest assembly metadata"
-wget -q -O "$METADATA_FILE" "https://ftp.ncbi.nlm.nih.gov/genomes/genbank/bacteria/assembly_summary.txt"
+download_with_retry wget -q -O "$METADATA_FILE" "https://ftp.ncbi.nlm.nih.gov/genomes/genbank/bacteria/assembly_summary.txt"
 if [[ "$MODE" == "heavy" ]]; then
-echo "WARNING: --get-all-species is enabled with heavy mode. It is recommended to include no more than 2 genera to avoid excessive runtime and disk usage."
+echo "Warning: It is recommended to include no more than 2 genus to avoid excessive runtime and disk usage when --get-all-species is enabled."
 fi
 fi
-> "$GENOME_DIR/expanded_species_list.txt"
+
 while IFS= read -r raw_line || [ -n "$raw_line" ]; do
 taxon=$(echo "$raw_line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '\r')
 [[ -z "$taxon" ]] && continue
@@ -404,16 +414,17 @@ fi
 # Initialize TAXON_LIST
 if [[ -n "$TAXON_FILE" ]]; then
 TAXON_LIST=$(< "$TAXON_FILE")
-elif [[ "$GET_ALL_SPECIES" == true && -f "$GENOME_DIR/expanded_species_list.txt" ]]; then
+elif [[ "$GET_ALL_SPECIES" == true && -f "$CUSTOM_GENOMES_DIR/expanded_species_list.txt" ]]; then
 TAXON_LIST=$(< "$CUSTOM_GENOMES_DIR/expanded_species_list.txt")
 elif [[ -n "$DOWNLOAD_FILE" ]]; then
 TAXON_LIST=$(< "$DOWNLOAD_FILE")
 else
 # Rmove numeric suffix and convert underscores and dots to spaces
-TAXON_LIST=$(find "$BLAST_DB_DIR" -name "*.nsq" -exec basename {} .nsq \; | sed -E '/[._][0-9]{2}$/s/[._][0-9]{2}$//' | sort -u |  sed 's/_/ /g' | sed -E 's/subsp /subsp. /g')
+TAXON_LIST=$(find "$BLAST_DB_DIR" -name "*.nsq" -exec basename {} .nsq \; | \
+sed -E '/[._][0-9]{2}$/s/[._][0-9]{2}$//' | sort -u |  sed 's/_/ /g' | sed -E 's/subsp /subsp. /g')
 fi
 # Process each taxon in TAXON_LIST
-while IFS= read -r taxon; do
+printf '%s\n' "$TAXON_LIST" | while IFS= read -r taxon; do
 [[ -z "$taxon" ]] && continue
 echo "Processing $taxon in $MODE mode"
 process_complete_genomes "$taxon"
@@ -468,5 +479,5 @@ echo -e "$taxon,$GENE_ID,$MIN_COVERAGE,$MIN_IDENTITY,$TOTAL_DRAFT_GENOMES,$TOTAL
 fi
 fi
 done
-done <<< "$TAXON_LIST"
+done
 echo "Analysis complete. Results saved in $OUTPUT_FILE"
