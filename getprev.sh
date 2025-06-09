@@ -424,7 +424,7 @@ TAXON_LIST=$(find "$BLAST_DB_DIR" -name "*.nsq" -exec basename {} .nsq \; | \
 sed -E '/[._][0-9]{2}$/s/[._][0-9]{2}$//' | sort -u |  sed 's/_/ /g' | sed -E 's/subsp /subsp. /g')
 fi
 # Process each taxon in TAXON_LIST
-printf '%s\n' "$TAXON_LIST" | while IFS= read -r taxon; do
+while IFS= read -r taxon; do
 [[ -z "$taxon" ]] && continue
 echo "Processing $taxon in $MODE mode"
 process_complete_genomes "$taxon"
@@ -479,5 +479,5 @@ echo -e "$taxon,$GENE_ID,$MIN_COVERAGE,$MIN_IDENTITY,$TOTAL_DRAFT_GENOMES,$TOTAL
 fi
 fi
 done
-done
+done <<< "$TAXON_LIST"
 echo "Analysis complete. Results saved in $OUTPUT_FILE"
