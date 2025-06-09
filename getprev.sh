@@ -143,13 +143,15 @@ sed -i "s/hpctasks/$hpcthreads/g" sge2.sh #user
 #user supplied arguments to getprev or getprev defaults
 #lines 214,221 assume -g -c -i -o -H -O -t in 
 #user supplied arguments to getprev or getprev defaults
-ALL_SPECIES_FLAG=""
 if [[ "$GET_ALL_SPECIES" == true ]]; then
-ALL_SPECIES_FLAG="--get-all-species"
-fi
 sed -i \
-'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" $ALL_SPECIES_FLAG -p T%g' \
+'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" --get-all-species -p T%g' \
 sge2.sh
+else
+sed -i \
+'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" -p T%g' \
+sge2.sh
+fi
 #write the needed variables to the sge template
 #the last variable tells EGP that ${"hpc"} = T
 #so that this entire while loop will be skipped
@@ -183,9 +185,15 @@ sed -i "s/RAM/$hpcmem/g" slurm2.sh #user
 sed -i "s/hpctasks/$hpcthreads/g" slurm2.sh #user
 sed -i 's/other/$other/g' slurm2.sh #local.
 #write the GEA command to the slurm template
+if [[ "$GET_ALL_SPECIES" == true ]]
 sed -i \
-'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" $ALL_SPECIES_FLAG -p T%g' \
+'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" --get-all-species -p T%g' \
 slurm2.sh
+else
+sed -i \
+'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" -p T%g' \
+slurm2.sh
+fi
 #write the needed variables to the slurm template
 #the last variable tells EGP that ${"hpc"} = T
 #so that this entire while loop will be skipped
