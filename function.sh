@@ -281,19 +281,20 @@ mapfile -t mono_aliases < "$MONOPHASIC_TYPHIMURIUM_LIST"
 mapfile -t deduped_seros < "$DUPLICATE_SEROTYPE_LIST"
 for subsp in "${subspecies_list[@]}"; do
 [[ -z "$subsp" ]] && continue
-mkdir -p "$genome_dir/Salmonella_enterica/$subsp"
+subsp_dir="$genome_dir/Salmonella_enterica/$subsp"
+mkdir -p "$subsp_dir"
 if [[ "$subsp" == "enterica" ]]; then
-mkdir -p "$genome_dir/Salmonella_enterica/$subsp/monophasic_Typhimurium"
-mkdir -p "$genome_dir/Salmonella_enterica/$subsp/Typhi"
+mkdir -p "$subsp_dir/monophasic_Typhimurium"
+mkdir -p "$subsp_dir/Typhi"
+mkdir -p "$subsp_dir/unclassified"
 for sero in "${serotype_list[@]}"; do
 [[ -z "$sero" ]] && continue
 if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq -- "$sero" 2>/dev/null; then
 continue
 fi
-mkdir -p "$genome_dir/Salmonella_enterica/enterica/$sero"
+mkdir -p "$subsp_dir/$sero"
 done
 fi
-mkdir -p "$genome_dir/Salmonella_enterica/enterica/unclassified"
 done
 declare -A accession_to_organism
 while IFS=$'\t' read -r col1 _ _ _ _ _ _ col8 _; do
@@ -309,7 +310,7 @@ if [[ "$organism_name" == Salmonella\ enterica* ]]; then
 base_path="$genome_dir/Salmonella_enterica"
 matched_subsp=false
 for subsp in "${subspecies_list[@]}"; do
-if [[ "$organism_name" == *subsp.*$subsp* ]]; then
+if [[ "$organism_name" =~ [sS]ubsp[\.[:space:]]*$subsp ]]; then
 matched_subsp=true
 base_path="$base_path/$subsp"
 matched_sero=false
@@ -320,7 +321,6 @@ matched_sero=true
 break
 fi
 done
-# match Typhi by regex
 if [[ "$matched_sero" == false && "$organism_name" =~ serovar[[:space:]]*Typhi([^a-zA-Z]|$) ]]; then
 target_dir="$base_path/Typhi"
 matched_sero=true
@@ -338,11 +338,15 @@ break
 fi
 done
 fi
-[[ "$matched_sero" == false ]] && target_dir="$base_path/unclassified"
+if [[ "$matched_sero" == false && "$subsp" == "enterica" ]]; then
+target_dir="$base_path/unclassified"
+fi
 break
 fi
 done
-[[ "$matched_subsp" == false ]] && target_dir="$genome_dir/Salmonella_enterica/unclassified"
+if [[ "$matched_subsp" == false ]]; then
+target_dir="$genome_dir/Salmonella_enterica/unclassified"
+fi
 elif [[ "$organism_name" == Salmonella\ bongori* ]]; then
 target_dir="$genome_dir/Salmonella_bongori"
 fi
@@ -364,8 +368,8 @@ sero_old_dir="$subsp_dir/$sero_name"
 [[ -d "$sero_dir" && -z "$(ls -A "$sero_dir")" ]] && rmdir "$sero_dir"
 [[ -d "$sero_old_dir" && -z "$(ls -A "$sero_old_dir")" ]] && rmdir "$sero_old_dir"
 done
-fi
 [[ -d "$subsp_dir/unclassified" && -z "$(ls -A "$subsp_dir/unclassified")" ]] && rmdir "$subsp_dir/unclassified"
+fi
 [[ -d "$subsp_dir" && -z "$(ls -A "$subsp_dir")" ]] && rmdir "$subsp_dir"
 done
 echo "Finished classifying Salmonella genomes."
