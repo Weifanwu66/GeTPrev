@@ -199,8 +199,7 @@ echo "Saved all serotype names in $output_file"
 # remove all Salmonella enterica subsp. enterica serovar prefix
 sed -i 's/Salmonella enterica subsp. enterica serovar //g' "$output_file"
 # delete known serotype names names by name match that are already stored in monophasic_Typhimurium_list.txt and Typhimurium_list.txt
-grep -vFf -- "$DUPLICATE_SEROTYPE_LIST" "$output_file" > tmp && \
-mv tmp "$output_file"
+grep -vFf "$DUPLICATE_SEROTYPE_LIST" "$output_file" > tmp && mv tmp "$output_file"
 } 
 
 # download Salmonella serotypes
@@ -238,7 +237,7 @@ download_with_retry ncbi-genome-download bacteria --genera "Salmonella enterica 
 find "$serotype_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
 if [[ "$serotype" == "Typhi" ]]; then
 for fna in "$serotype_dir"/*.fna; do
-if ! grep -Eiq "serovar Typhi([^a-zA-Z]|$)" "$fna" 2>/dev/null || true; then
+if ! grep -Eiq "serovar Typhi([^a-zA-Z]|$)" "$fna" 2>/dev/null; then
 echo "Deleting non-Typhi genome: $(basename "$fna")"
 rm -f "$fna"
 fi
@@ -246,7 +245,7 @@ done
 fi
 if [[ "$serotype" == "Typhimurium" ]]; then
 for fna in "$serotype_dir"/*.fna; do
-if ! grep -Eiq "serovar Typhimurium([^[:alpha:]]|$)" "$fna" 2>/dev/null || grep -Eiq "serovar Typhimurium.*var\." "$fna" 2>/dev/null || true; then
+if ! grep -Eiq "serovar Typhimurium([^[:alpha:]]|$)" "$fna" 2>/dev/null || grep -Eiq "serovar Typhimurium.*var\." "$fna" 2>/dev/null; then
 echo "Deleting non-Typhimurium genome: $(basename "$fna")"
 rm -f "$fna"
 fi
@@ -288,13 +287,13 @@ mkdir -p "$genome_dir/Salmonella_enterica/$subsp/monophasic_Typhimurium"
 mkdir -p "$genome_dir/Salmonella_enterica/$subsp/Typhi"
 for sero in "${serotype_list[@]}"; do
 [[ -z "$sero" ]] && continue
-if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq -- "$sero" 2>/dev/null || true; then
+if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq -- "$sero" 2>/dev/null; then
 continue
 fi
-mkdir -p "$genome_dir/Salmonella_enterica/$subsp/$sero"
+mkdir -p "$genome_dir/Salmonella_enterica/enterica/$sero"
 done
 fi
-mkdir -p "$genome_dir/Salmonella_enterica/$subsp/unclassified"
+mkdir -p "$genome_dir/Salmonella_enterica/enterica/unclassified"
 done
 declare -A accession_to_organism
 while IFS=$'\t' read -r col1 _ _ _ _ _ _ col8 _; do
@@ -329,7 +328,7 @@ fi
 if [[ "$matched_sero" == false ]]; then
 for sero in "${serotype_list[@]}"; do
 if [[ "$organism_name" =~ serovar[[:space:]]*$sero([^a-zA-Z]|$) ]]; then
-if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq -- "$sero" 2>/dev/null || true; then
+if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq -- "$sero" 2>/dev/null; then
 continue
 fi
 safe_sero_name=$(echo "$sero" | tr -d "'\"" | tr -cs '[:alnum:]_:.-' '_' | sed 's/^_//;s/_$//')
@@ -355,7 +354,7 @@ subsp_dir="$genome_dir/Salmonella_enterica/$subsp"
 if [[ "$subsp" == "enterica" ]]; then
 for sero in "${serotype_list[@]}"; do
 [[ -z "$sero" ]] && continue
-if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq -- "$sero" 2>/dev/null || true; then
+if printf '%s\n' "${deduped_seros[@]}" | grep -Fxq -- "$sero" 2>/dev/null; then
 continue
 fi
 sero_name=$(echo "$sero")
