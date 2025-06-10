@@ -310,7 +310,7 @@ if [[ "$organism_name" == Salmonella\ enterica* ]]; then
 base_path="$genome_dir/Salmonella_enterica"
 matched_subsp=false
 for subsp in "${subspecies_list[@]}"; do
-if [[ "$organism_name" == *subsp.*"$subsp"* ]]; then
+if echo "$organism_name" | grep -Eq "subsp[.]?[[:space:]]*$subsp([^a-zA-Z]|$)"; then
 matched_subsp=true
 base_path="$base_path/$subsp"
 matched_sero=false
