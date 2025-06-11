@@ -59,7 +59,7 @@ return
 fi
 mkdir -p "$genus_dir"
 echo "Downloading genus: $genus"
-download_with_retry ncbi-genome-download bacteria --genera "$genus" --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$genus_dir" --verbose --flat-output
+download_with_retry ncbi-genome-download bacteria --genera "$genus" --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$genus_dir" --flat-output
 find "$genus_dir" -type f -name "*_genomic.fna.gz" -exec gzip -d {} \;
 echo "Downloaded and organized genomes for $genus"
 }
@@ -134,7 +134,7 @@ echo "Genomes already exist for $species, skipping downloading"
 return
 fi
 echo "Downloading genomes for $species"
-download_with_retry ncbi-genome-download bacteria --genera "$species" --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$species_dir" --flat-output --verbose
+download_with_retry ncbi-genome-download bacteria --genera "$species" --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$species_dir" --flat-output
 find "$species_dir" -type f -name "*_genomic.fna.gz" -exec gzip -d {} \;
 if [[ -z "$(find "$species_dir" -maxdepth 1 -type f -name "*_genomic.fna" 2>/dev/null)" ]]; then
 echo "No genomes found for $species. Remove empty directory."
@@ -179,7 +179,7 @@ continue
 fi
 echo "Downloading genomes for Salmonella enterica subsp. $subspecies"
 download_with_retry ncbi-genome-download bacteria --genera "Salmonella enterica subsp. $subspecies" \
- --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$subspecies_dir" --verbose --flat-output
+ --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$subspecies_dir" --flat-output
 find "$subspecies_dir" -type f -name "*_genomic.fna.gz" -exec gzip -d {} \;
 if [[ -z "$(find "$subspecies_dir" -maxdepth 1 -type f -name "*_genomic.fna" 2>/dev/null)" ]]; then
 echo "No genomes found for $subspecies. Removing empty directory."

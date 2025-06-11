@@ -26,8 +26,8 @@ mkdir -p "$BLAST_DB_DIR"
 
 if [[ "$FORCE_UPDATE" == "true" ]]; then
  echo "[$(date '+%F %T')] Cleaning up old genome and BLAST database directories..."
-  rm -rf "$GENOME_DIR"/*
-  rm -rf "$BLAST_DB_DIR"/*
+ rm -rf "$GENOME_DIR"/*
+ rm -rf "$BLAST_DB_DIR"/*
 fi
 
 # Download latest metadata
