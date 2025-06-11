@@ -340,6 +340,8 @@ done
 fi
 if [[ "$matched_sero" == false && "$subsp" == "enterica" ]]; then
 target_dir="$base_path/unclassified"
+elif [[ "$matched_sero" == false ]]; then
+target_dir="$base_path"
 fi
 break
 fi
