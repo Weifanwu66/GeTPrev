@@ -56,18 +56,18 @@ The script to download complete genomes and construct their corresponding BLAST 
 │   │   ├── unclassified/
 │   │   ├── Salmonella_enterica/
 │   │   │   ├── unclassified/
-│   │   │   ├── subsp_enterica/
+│   │   │   ├── enterica/
 │   │   │   │   ├── unclassified/
 │   │   │   │   ├── Typhimurium/
 │   │   │   │   ├── Infantis/
 │   │   │   │   ├── Newport/
 │   │   │   │   ├── Heidelberg/
 │   │   │   │   ├── ...
-│   │   │   ├── subsp_salamae/
-│   │   │   ├── subsp_arizonae/
-│   │   │   ├── subsp_diarizonae/
-│   │   │   ├── subsp_houtenae/
-│   │   │   ├── subsp_indica/
+│   │   │   ├── salamae/
+│   │   │   ├── arizonae/
+│   │   │   ├── diarizonae/
+│   │   │   ├── houtenae/
+│   │   │   ├── indica/
 │   │   ├── Salmonella_bongori/
 │   ├── Shigella/
 │   │   ├── unclassified/
