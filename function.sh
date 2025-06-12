@@ -722,6 +722,7 @@ local perc_identity="$2"
 local output_dir="$3"
 local iteration="$4" # only used for draft genomes
 local taxon="$5"
+local blast_threads="${6:-$(get_cpus)}"
 if [[ -n "$iteration" ]]; then
 echo "Processing draft genomes for iteration $iteration: $taxon"
 local standard_taxon="$(extract_taxon_info "$taxon")"
@@ -745,7 +746,7 @@ local blast_output="${output_dir}/${safe_taxon}/iteration_${iteration}_draft_bla
 mkdir -p "$(dirname "$blast_output")"
 echo "Running BLAST for $taxon..."
 blastn -query "$query_gene" -db "$blast_db" -out "$blast_output" -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen" \
--perc_identity "$perc_identity" -max_target_seqs 10000
+-perc_identity "$perc_identity" -max_target_seqs 10000 -num_threads "$blast_threads"
 echo "BLAST results saved to: $blast_output"
 else
 # skip empty lines
@@ -758,7 +759,7 @@ local blast_output_name="${clean_taxon// /_}"
 blast_output_name="${blast_output_name//./}"
 local blast_output="${output_dir}/${blast_output_name}_complete_blast_results.txt"
 blastn -query "$query_gene" -db "$blast_db" -out "$blast_output" -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen" \
--perc_identity "$perc_identity" -max_target_seqs 10000
+-perc_identity "$perc_identity" -max_target_seqs 10000 -num_threads "$blast_threads"
 echo "BLAST results saved to $blast_output"
 fi
 echo "BLAST analysis completed. Results saved in: $output_dir"
