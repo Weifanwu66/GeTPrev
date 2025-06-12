@@ -237,6 +237,13 @@ fi
 hpc=T
 done
 
+# determine number of threads for blastn operations
+if [[ "$hpc" == "T" ]]; then
+    BLAST_THREADS="$hpcthreads"
+else
+    BLAST_THREADS="$(get_cpus)"
+fi
+
 if [[ "$OVERWRITE" == true ]]; then
 rm -rf "$BLAST_RESULT_DIR" "$FILTERED_BLAST_RESULT_DIR" "$DRAFT_BLAST_RESULT_DIR" "$DRAFT_BLAST_DB_DIR" "$FILTERED_BLAST_RESULT_DIR" "$DRAFT_GENOMES_DIR" "$FILTERED_DRAFT_BLAST_RESULT_DIR" "$OUTPUT_FILE"
 fi
@@ -384,7 +391,7 @@ local blast_output_name="${clean_taxon// /_}"
 blast_output_name="${blast_output_name//./}"
 local blast_output="${BLAST_RESULT_DIR}/${blast_output_name}_complete_blast_results.txt"
 if [[ ! -s "$blast_output" ]]; then
-perform_blast "$GENE_FILE" "$MIN_IDENTITY" "$BLAST_RESULT_DIR" "" "$taxon"
+perform_blast "$GENE_FILE" "$MIN_IDENTITY" "$BLAST_RESULT_DIR" "" "$taxon" "$BLAST_THREADS"
 echo "BLAST result saved to $blast_output"
 else
 echo "Skipping BLAST: results already exist for $taxon"
@@ -406,7 +413,7 @@ echo "Processing $taxon | Total draft genomes: $total_draft_genomes. Running $it
 for ((i=1; i<=iterations; i++)); do
 echo "Starting iterations $i/$iterations for $taxon"
 download_random_draft_genomes "$taxon" "$sample_size" "$DRAFT_GENOMES_DIR" "$i"
-perform_blast "$GENE_FILE" "$MIN_IDENTITY" "$DRAFT_BLAST_RESULT_DIR" "$i" "$taxon"
+perform_blast "$GENE_FILE" "$MIN_IDENTITY" "$DRAFT_BLAST_RESULT_DIR" "$i" "$taxon" "$BLAST_THREADS"
 mkdir -p "${DRAFT_BLAST_RESULT_DIR}"
 local blast_result_file="${DRAFT_BLAST_RESULT_DIR}/${blast_db_name}/iteration_${i}_draft_blast_results.txt"
 filter_blast_results "$blast_result_file" "$FILTERED_DRAFT_BLAST_RESULT_DIR" "$MIN_COVERAGE" "draft"
