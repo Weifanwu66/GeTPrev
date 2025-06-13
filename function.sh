@@ -424,15 +424,18 @@ echo "Finished classifying $genus genomes."
 # generate genome list for each directory
 function generate_directory_csv() {
 local base_dir="$1"
-echo "[$(date)] Generating genomes_list.csv under $base_dir"
+local MAX_PARALLEL_JOBS=$(( $(get_cpus) * 2 / 3 ))
+echo "[$(date)] Generating genomes_list.csv under $base_dir (parallel mode)"
+export METADATA_FILE
 find "$base_dir" -type d | while read -r dir; do
+(
 genome_ids=()
 while IFS= read -r file; do
 accession=$(basename "$file" | sed -E 's/^(GCA_[0-9]+\.[0-9]+).*/\1/')
 genome_ids+=("$accession")
 done < <(find "$dir" -maxdepth 1 -type f \( -name "*_genomic.fna" -o -name "*_genomic.fna.gz" \))
 if [[ ${#genome_ids[@]} -eq 0 ]]; then
-continue
+exit 0
 fi
 output_csv="$dir/genomes_list.csv"
 {
@@ -442,7 +445,11 @@ grep "^${acc}[[:space:]]" "$METADATA_FILE"
 done
 } > "$output_csv"
 echo "[$(date)] Saved: $output_csv"
+) &
+while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do sleep 1; done
 done
+wait
+echo "[$(date)] All CSV files generated."
 }
 
 # check for duplicates
@@ -478,8 +485,9 @@ function build_blastdb_for_EB_default() {
 input_dir="$1"
 output_dir="$2"
 mkdir -p "$output_dir"
+MAX_PARALLEL_JOBS=$(($(get_cpus) * 2 / 3))
 echo "Building BLAST database from genomes in $input_dir"
-find "$input_dir" -mindepth 1 -maxdepth 1 -type d | while read -r TAXON_DIR; do
+while read -r TAXON_DIR; do
 taxon_name=$(basename "$TAXON_DIR")
 [[ "$taxon_name" == "unclassified" ]] && continue
 subdir_count=$(find "$TAXON_DIR" -mindepth 1 -maxdepth 1 -type d ! -name "unclassified" | wc -l)
@@ -487,47 +495,53 @@ if [[ "$subdir_count" -eq 0 ]]; then
 echo "Detected species-level directory: $taxon_name"
 species_fasta="$TAXON_DIR/${taxon_name}_all_genomes.fna"
 find "$TAXON_DIR" -type f -name "*_genomic.fna" | while read -r file; do accession=$(basename "$file" | grep -oE 'GC[AF]_[0-9]+\.[0-9]+'); awk -v acc="$accession" '/^>/{print ">" acc "|" substr($0,2); next} 1' "$file"; done > "$species_fasta"
-create_blastdb "$species_fasta" "$output_dir/$taxon_name"
+create_blastdb "$species_fasta" "$output_dir/$taxon_name" &
+while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do sleep 1; done
 else
 echo "Detected genus-level directory: $taxon_name"
 num_children=$(find "$TAXON_DIR" -mindepth 1 -maxdepth 1 -type d ! -name "unclassified" | wc -l)
 if [[ "$num_children" -gt 1 ]]; then
 genus_fasta="$TAXON_DIR/${taxon_name}_all_genomes.fna"
 find "$TAXON_DIR" -type f -name "*_genomic.fna" | while read -r file; do accession=$(basename "$file" | grep -oE 'GC[AF]_[0-9]+\.[0-9]+'); awk -v acc="$accession" '/^>/{print ">" acc "|" substr($0,2); next} 1' "$file"; done > "$genus_fasta"
-create_blastdb "$genus_fasta" "$output_dir/$taxon_name"
+create_blastdb "$genus_fasta" "$output_dir/$taxon_name" &
+while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do sleep 1; done
 else
 echo "Skipping genus-level BLAST DB for $taxon_name (only one species/subdir)"
 fi
-find "$TAXON_DIR" -mindepth 1 -maxdepth 1 -type d | while read -r species_dir; do
+while read -r species_dir; do
 species_name=$(basename "$species_dir")
 [[ "$species_name" == "unclassified" ]] && continue
 species_fasta="$species_dir/${species_name}_all_genomes.fna"
 find "$species_dir" -type f -name "*_genomic.fna" | while read -r file; do accession=$(basename "$file" | grep -oE 'GC[AF]_[0-9]+\.[0-9]+'); awk -v acc="$accession" '/^>/{print ">" acc "|" substr($0,2); next} 1' "$file"; done > "$species_fasta"
-create_blastdb "$species_fasta" "$output_dir/$species_name"
+create_blastdb "$species_fasta" "$output_dir/$species_name" &
+while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do sleep 1; done
 if [[ "$species_name" == "Salmonella_enterica" ]]; then
-find "$species_dir" -mindepth 1 -maxdepth 1 -type d | while read -r subspecies_dir; do
+while read -r subspecies_dir; do
 subspecies_name=$(basename "$subspecies_dir")
 [[ "$subspecies_name" == "unclassified" ]] && continue
 echo "Detected Salmonella subspecies: $subspecies_name"
 subspecies_fasta="$subspecies_dir/Salmonella_enterica_subsp_${subspecies_name}_all_genomes.fna"
 find "$subspecies_dir" -type f -name "*_genomic.fna" | while read -r file; do accession=$(basename "$file" | grep -oE 'GC[AF]_[0-9]+\.[0-9]+'); awk -v acc="$accession" '/^>/{print ">" acc "|" substr($0,2); next} 1' "$file"; done > "$subspecies_fasta"
-create_blastdb "$subspecies_fasta" "$output_dir/Salmonella_enterica_subsp_${subspecies_name}"
+create_blastdb "$subspecies_fasta" "$output_dir/Salmonella_enterica_subsp_${subspecies_name}" &
+while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do sleep 1; done
 if [[ "$subspecies_name" == "enterica" ]]; then
-find "$subspecies_dir" -mindepth 1 -maxdepth 1 -type d | while read -r serotype_dir; do
+while read -r serotype_dir; do
 serotype_name=$(basename "$serotype_dir")
 [[ "$serotype_name" == "unclassified" ]] && continue
 echo "Detected Salmonella enterica serotype: $serotype_name"
 serotype_fasta="$serotype_dir/${serotype_name}_genomes.fna"
 find "$serotype_dir" -type f -name "*_genomic.fna" | while read -r file; do accession=$(basename "$file" | grep -oE 'GC[AF]_[0-9]+\.[0-9]+'); \
 awk -v acc="$accession" '/^>/{print ">" acc "|" substr($0,2); next} 1' "$file"; done > "$serotype_fasta"
-create_blastdb "$serotype_fasta" "$output_dir/Salmonella_${serotype_name}"
-done
+create_blastdb "$serotype_fasta" "$output_dir/Salmonella_${serotype_name}" &
+while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do sleep 1; done
+done < <(find "$subspecies_dir" -mindepth 1 -maxdepth 1 -type d)
 fi
-done
+done < <(find "$species_dir" -mindepth 1 -maxdepth 1 -type d)
 fi
-done
+done < <(find "$TAXON_DIR" -mindepth 1 -maxdepth 1 -type d)
 fi
-done
+done < <(find "$input_dir" -mindepth 1 -maxdepth 1 -type d)
+wait
 find "$input_dir" -type f \( -name "*_genomic.fna" -o -name "*_all_genomes.fna" \) | while read -r f; do gzip -f "$f" & done
 wait
 echo "Finished building BLAST databases for default EB genomes"
@@ -537,8 +551,9 @@ function build_custom_blastdb() {
 input_dir="$1"
 output_dir="$2"
 mkdir -p "$output_dir"
+MAX_PARALLEL_JOBS=$(($(get_cpus) * 2 / 3))
 echo "Building BLAST databases for custom panel from: $input_dir"
-find "$input_dir" -mindepth 1 -maxdepth 1 -type d | while read -r taxon_dir; do
+while read -r taxon_dir; do
 taxon_name=$(basename "$taxon_dir")
 [[ "$taxon_name" == "unclassified" ]] && continue
 echo "Processing: $taxon_name"
@@ -554,17 +569,20 @@ db_name="Salmonella_${BASH_REMATCH[1]}"
 else
 db_name="$taxon_name"
 fi
-create_blastdb "$combined_fasta" "$output_dir/$db_name"
-find "$taxon_dir" -mindepth 1 -maxdepth 1 -type d | while read -r species_dir; do
+create_blastdb "$combined_fasta" "$output_dir/$db_name" &
+while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do sleep 1; done
+while read -r species_dir; do
 species_name=$(basename "$species_dir")
 species_fasta="$species_dir/${species_name}_all_genomes.fna"
 find "$species_dir" -type f -name "*_genomic.fna" | while read -r file; do
 accession=$(basename "$file" | grep -oE 'GC[AF]_[0-9]+\.[0-9]+')
 awk -v acc="$accession" '/^>/{print ">" acc "|" substr($0,2); next} 1' "$file"
 done > "$species_fasta"
-create_blastdb "$species_fasta" "$output_dir/$species_name"
-done
-done
+create_blastdb "$species_fasta" "$output_dir/$species_name" &
+while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do sleep 1; done
+done < <(find "$taxon_dir" -mindepth 1 -maxdepth 1 -type d)
+done < <(find "$input_dir" -mindepth 1 -maxdepth 1 -type d)
+wait
 find "$input_dir" -type f \( -name "*_genomic.fna" -o -name "*_all_genomes.fna" \) | while read -r f; do gzip -f "$f" & done
 wait
 echo "Finished building custom BLAST databases"
