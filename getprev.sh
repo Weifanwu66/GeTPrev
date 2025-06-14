@@ -302,15 +302,17 @@ taxon=$(echo "$taxon" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '\r')
 if [[ "$taxon" =~ ^Salmonella\ enterica\ subsp\.?[[:space:]]+([a-zA-Z0-9_]+)$ ]]; then
 subsp="${BASH_REMATCH[1]}"
 echo "Detected Salmonella enterica subspecies: $subsp"
-echo "$subsp" > "$GENOME_DIR/temp_subsp_list.txt"
-download_salmonella_subsp "$GENOME_DIR/temp_subsp_list.txt"
-rm -f "$GENOME_DIR/temp_subsp_list.txt"
+tmp_subsp_file=$(mktemp "${GENOME_DIR}/temp_subsp_list.XXXXXX")
+echo "$subsp" > "$tmp_subsp_file"
+download_salmonella_subsp "$tmp_subsp_file"
+rm -f "$tmp_subsp_file"
 elif [[ "$taxon" =~ ^Salmonella( enterica subsp\.?\ enterica serovar)?[[:space:]]+([[:alnum:][:punct:]]+[[:space:]]?[[:alnum:][:punct:]]*)$ ]]; then
 serotype="${BASH_REMATCH[2]}"
 echo "Detected Salmonella serotype: $serotype"
-echo "$serotype" > "$GENOME_DIR/temp_serotype_list.txt"
-download_salmonella_serotype "$GENOME_DIR/temp_serotype_list.txt"
-rm -f "$GENOME_DIR/temp_serotype_list.txt"
+tmp_sero_file=$(mktemp "${GENOME_DIR}/temp_serotype_list.XXXXXX")
+echo "$serotype" > "$tmp_sero_file"
+download_salmonella_serotype "$tmp_sero_file"
+rm -f "$tmp_sero_file"
 elif [[ "$taxon" =~ ^[A-Z][a-z]+\ [a-z]+$ ]]; then
 echo "Detected species: $taxon"
 download_species "$taxon" "$GENOME_DIR"
