@@ -294,10 +294,10 @@ echo "Warning: It is recommended to include no more than 2 genus to avoid excess
 fi
 fi
 
-while IFS= read -r raw_line || [ -n "$raw_line" ]; do
-taxon=$(echo "$raw_line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '\r')
+mapfile -t taxa < "$DOWNLOAD_FILE"
+for taxon in "${taxa[@]}"; do
+taxon=$(echo "$taxon" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr -d '\r')
 [[ -z "$taxon" ]] && continue
-
 (
 if [[ "$taxon" =~ ^Salmonella\ enterica\ subsp\.?[[:space:]]+([a-zA-Z0-9_]+)$ ]]; then
 subsp="${BASH_REMATCH[1]}"
@@ -336,7 +336,7 @@ echo "Unrecognized or unsupported taxon format: $taxon" >> "$FAILED_FLAG"
 fi
 ) &
 while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do sleep 1; done
-done < "$DOWNLOAD_FILE"
+done
 wait
 echo "Building BLAST databases for custom panel"
 build_custom_blastdb "$GENOME_DIR" "$BLAST_DB_DIR"
