@@ -2,10 +2,9 @@
 #SBATCH --job-name=build_EB_complete_genomes_db
 #SBATCH --output=slurm_build_EB_db_%j.out
 #SBATCH --error=slurm_build_EB_db_%j.err
-#SBATCH --time=24:00:00
+#SBATCH --time=12:00:00
 #SBATCH --mem=128G
-#SBATCH --cpus-per-task=72
-
+#SBATCH --cpus-per-task=32
 set -euo pipefail
 
 WORKDIR=$(pwd)

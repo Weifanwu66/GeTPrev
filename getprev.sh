@@ -285,6 +285,7 @@ MAX_PARALLEL_JOBS=$(( TOTAL_CPUS * 2 / 3 ))
 
 if [[ "$GET_ALL_SPECIES" == true ]]; then
 > "$GENOME_DIR/expanded_species_list.txt"
+cp "$DOWNLOAD_FILE" "$GENOME_DIR/expanded_species_list.txt"
 METADATA_FILE="$DATABASE_DIR/assembly_summary_bacteria.txt"
 echo "Downloading latest assembly metadata"
 download_with_retry wget -q -O "$METADATA_FILE" "https://ftp.ncbi.nlm.nih.gov/genomes/genbank/bacteria/assembly_summary.txt"
@@ -323,7 +324,6 @@ echo "Expanding genus $taxon to species level"
 SPECIES_LIST_FILE="$GENUS_DIR/species_list.txt"
 get_species_list "$taxon" "$SPECIES_LIST_FILE"
 classify_genus_by_metadata "$taxon"
-cp "$DOWNLOAD_FILE" "$GENOME_DIR/expanded_species_list.txt"
 find "$GENUS_DIR" -mindepth 1 -maxdepth 1 -type d ! -name "unclassified" | while read -r species_dir; do
 if compgen -G "$species_dir/*_genomic.fna" > /dev/null; then
 species_name=$(basename "$species_dir" | tr '_' ' ')
@@ -410,14 +410,22 @@ blast_db_name="${blast_db_name//./}"
 local total_draft_genomes=$(get_total_genomes_count "$taxon" "contig")
 read -r sample_size iterations <<< "$(calculate_sample_size_and_iterations "$total_draft_genomes")"
 echo "Processing $taxon | Total draft genomes: $total_draft_genomes. Running $iterations iterations (max 20)."
+local max_parallel_iter=3
+(( iterations < max_parallel_iter )) && max_parallel_iter=$iterations
+local i
 for ((i=1; i<=iterations; i++)); do
-echo "Starting iterations $i/$iterations for $taxon"
-download_random_draft_genomes "$taxon" "$sample_size" "$DRAFT_GENOMES_DIR" "$i"
-perform_blast "$GENE_FILE" "$MIN_IDENTITY" "$DRAFT_BLAST_RESULT_DIR" "$i" "$taxon" "$BLAST_THREADS"
+(
+local iter="$i"
+echo "Starting iterations $iter/$iterations for $taxon"
+download_random_draft_genomes "$taxon" "$sample_size" "$DRAFT_GENOMES_DIR" "$iter"
+perform_blast "$GENE_FILE" "$MIN_IDENTITY" "$DRAFT_BLAST_RESULT_DIR" "$iter" "$taxon" "$BLAST_THREADS"
 mkdir -p "${DRAFT_BLAST_RESULT_DIR}"
-local blast_result_file="${DRAFT_BLAST_RESULT_DIR}/${blast_db_name}/iteration_${i}_draft_blast_results.txt"
+blast_result_file="${DRAFT_BLAST_RESULT_DIR}/${blast_db_name}/iteration_${iter}_draft_blast_results.txt"
 filter_blast_results "$blast_result_file" "$FILTERED_DRAFT_BLAST_RESULT_DIR" "$MIN_COVERAGE" "draft"
+) &
+while (( $(jobs -r | wc -l) >= max_parallel_iter )); do sleep 1; done
 done
+wait
 }
 
 # Set up the output file headers

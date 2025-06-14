@@ -35,16 +35,14 @@ fi
 
 # protection mechanism with download retry
 function download_with_retry() {
-local attempts="${RETRY_ATTEMPTS:-3}"
-local delay="${RETRY_DELAY:-5}"
-local count=1
-while (( count <= attempts )); do
+local retries=3
+local delay=15
+for ((i=1; i<=retries; i++)); do
 "$@" && return 0
-echo "Attempt $count/$attempts failed for: $*" >&2
-sleep "$delay"
-((count++))
+echo "Attempt $i failed. Retrying in $delay seconds" >&2
+sleep $delay
+delay=$((delay * 2))
 done
-echo "Command failed after $attempts attempts: $*" >> "$FAILED_FLAG"
 return 1
 }
 
@@ -730,7 +728,8 @@ accessions=$(ncbi-genome-download bacteria --genera "$query" --assembly-level co
 fi
 local valid_accessions=$(echo "$accessions" | grep -E '^GCA_[0-9]+\.[0-9]+$' | shuf -n "$sample_size")
 echo "$valid_accessions" > "${iteration_dir}/selected_accessions.txt"
-download_with_retry ncbi-genome-download bacteria --assembly-accessions "${iteration_dir}/selected_accessions.txt" --formats fasta --assembly-level contig --section genbank --output-folder "$iteration_dir" --flat-output
+download_with_retry ncbi-genome-download bacteria --assembly-accessions "${iteration_dir}/selected_accessions.txt" \
+ --formats fasta --assembly-level contig --section genbank --output-folder "$iteration_dir" --flat-output
 find "$iteration_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
 }
 
