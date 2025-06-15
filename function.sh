@@ -57,7 +57,8 @@ return
 fi
 mkdir -p "$genus_dir"
 echo "Downloading genus: $genus"
-download_with_retry ncbi-genome-download bacteria --genera "$genus" --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$genus_dir" --flat-output
+download_with_retry ncbi-genome-download bacteria --genera "$genus" --assembly-level "$ASSEMBLY_LEVEL" \
+ --formats fasta --section genbank --output-folder "$genus_dir" --flat-output
 if compgen -G "$genus_dir"/*_genomic.fna.gz > /dev/null; then
 find "$genus_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
 fi
