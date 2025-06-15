@@ -58,7 +58,9 @@ fi
 mkdir -p "$genus_dir"
 echo "Downloading genus: $genus"
 download_with_retry ncbi-genome-download bacteria --genera "$genus" --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$genus_dir" --flat-output
-find "$genus_dir" -type f -name "*_genomic.fna.gz" -exec gzip -d {} \;
+if compgen -G "$genus_dir"/*_genomic.fna.gz > /dev/null; then
+find "$genus_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
+fi
 echo "Downloaded and organized genomes for $genus"
 }
 
@@ -132,8 +134,11 @@ echo "Genomes already exist for $species, skipping downloading"
 return
 fi
 echo "Downloading genomes for $species"
-download_with_retry ncbi-genome-download bacteria --genera "$species" --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$species_dir" --flat-output
-find "$species_dir" -type f -name "*_genomic.fna.gz" -exec gzip -d {} \;
+download_with_retry ncbi-genome-download bacteria --genera "$species" --assembly-level "$ASSEMBLY_LEVEL" \
+ --formats fasta --section genbank --output-folder "$species_dir" --flat-output
+if compgen -G "$species_dir"/*_genomic.fna.gz > /dev/null; then
+find "$species_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
+fi
 if [[ -z "$(find "$species_dir" -maxdepth 1 -type f -name "*_genomic.fna" 2>/dev/null)" ]]; then
 echo "No genomes found for $species. Remove empty directory."
 rm -rf "$species_dir"
@@ -178,7 +183,9 @@ fi
 echo "Downloading genomes for Salmonella enterica subsp. $subspecies"
 download_with_retry ncbi-genome-download bacteria --genera "Salmonella enterica subsp. $subspecies" \
  --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$subspecies_dir" --flat-output
-find "$subspecies_dir" -type f -name "*_genomic.fna.gz" -exec gzip -d {} \;
+if compgen -G "$subspecies_dir"/*_genomic.fna.gz > /dev/null; then
+find "$subspecies_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
+fi
 if [[ -z "$(find "$subspecies_dir" -maxdepth 1 -type f -name "*_genomic.fna" 2>/dev/null)" ]]; then
 echo "No genomes found for $subspecies. Removing empty directory."
 rm -rf "$subspecies_dir"
@@ -225,14 +232,18 @@ echo "Downloading: $mono"
 download_with_retry ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $mono" \
  --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$serotype_dir" --flat-output
 done < "$MONOPHASIC_TYPHIMURIUM_LIST"
+if compgen -G "$serotype_dir"/*_genomic.fna.gz > /dev/null; then
 find "$serotype_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
+fi
 find "$serotype_dir" -type f -name "*.fna" -exec grep -Eil "serovar 43:a:1,7" {} \; -exec rm -f {} \;
 return
 fi
 echo "Downloading genomes for: Salmonella enterica subsp. enterica serovar $serotype"
 download_with_retry ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $serotype" \
  --assembly-level "$ASSEMBLY_LEVEL" --formats fasta --section genbank --output-folder "$serotype_dir" --flat-output
+if compgen -G "$serotype_dir"/*_genomic.fna.gz > /dev/null; then
 find "$serotype_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
+fi
 if [[ "$serotype" == "Typhi" ]]; then
 for fna in "$serotype_dir"/*.fna; do
 if ! grep -Eiq "serovar Typhi([^a-zA-Z]|$)" "$fna" 2>/dev/null; then
@@ -730,7 +741,9 @@ local valid_accessions=$(echo "$accessions" | grep -E '^GCA_[0-9]+\.[0-9]+$' | s
 echo "$valid_accessions" > "${iteration_dir}/selected_accessions.txt"
 download_with_retry ncbi-genome-download bacteria --assembly-accessions "${iteration_dir}/selected_accessions.txt" \
  --formats fasta --assembly-level contig --section genbank --output-folder "$iteration_dir" --flat-output
+if compgen -G "$iteration_dir"/*_genomic.fna.gz > /dev/null; then
 find "$iteration_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
+fi
 }
 
 function perform_blast(){
