@@ -336,7 +336,7 @@ fi
 else
 echo "Unrecognized or unsupported taxon format: $taxon" >> "$FAILED_FLAG"
 fi
-) &
+) 2>/dev/null &
 while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do sleep 1; done
 done
 wait
@@ -424,7 +424,7 @@ perform_blast "$GENE_FILE" "$MIN_IDENTITY" "$DRAFT_BLAST_RESULT_DIR" "$iter" "$t
 mkdir -p "${DRAFT_BLAST_RESULT_DIR}"
 blast_result_file="${DRAFT_BLAST_RESULT_DIR}/${blast_db_name}/iteration_${iter}_draft_blast_results.txt"
 filter_blast_results "$blast_result_file" "$FILTERED_DRAFT_BLAST_RESULT_DIR" "$MIN_COVERAGE" "draft"
-) &
+) 2>/dev/null &
 while (( $(jobs -r | wc -l) >= max_parallel_iter )); do sleep 1; done
 done
 wait
@@ -449,7 +449,7 @@ TAXON_LIST=$(find "$BLAST_DB_DIR" -name "*.nsq" -exec basename {} .nsq \; | \
 sed -E '/[._][0-9]{2}$/s/[._][0-9]{2}$//' | sort -u |  sed 's/_/ /g' | sed -E 's/subsp /subsp. /g')
 fi
 # Process each taxon in TAXON_LIST
-while IFS= read -r taxon; do
+echo "$TAXON_LIST" | while IFS= read -r taxon; do
 [[ -z "$taxon" ]] && continue
 echo "Processing $taxon in $MODE mode"
 process_complete_genomes "$taxon"
@@ -504,5 +504,5 @@ echo -e "$taxon,$GENE_ID,$MIN_COVERAGE,$MIN_IDENTITY,$TOTAL_DRAFT_GENOMES,$TOTAL
 fi
 fi
 done
-done <<< "$TAXON_LIST"
+done
 echo "Analysis complete. Results saved in $OUTPUT_FILE"
