@@ -4,7 +4,7 @@
 #SBATCH --error=slurm_build_EB_db_%j.err
 #SBATCH --time=12:00:00
 #SBATCH --mem=128G
-#SBATCH --cpus-per-task=32
+#SBATCH --cpus-per-task=16
 set -euo pipefail
 
 WORKDIR=$(pwd)
