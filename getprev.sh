@@ -283,12 +283,12 @@ fi
 TOTAL_CPUS=$(get_cpus)
 MAX_PARALLEL_JOBS=$(( TOTAL_CPUS * 2 / 3 ))
 
-if [[ "$GET_ALL_SPECIES" == true ]]; then
-> "$GENOME_DIR/expanded_species_list.txt"
-cp "$DOWNLOAD_FILE" "$GENOME_DIR/expanded_species_list.txt"
 METADATA_FILE="$DATABASE_DIR/assembly_summary_bacteria.txt"
 echo "Downloading latest assembly metadata"
 download_with_retry wget -q -O "$METADATA_FILE" "https://ftp.ncbi.nlm.nih.gov/genomes/genbank/bacteria/assembly_summary.txt"
+if [[ "$GET_ALL_SPECIES" == true ]]; then
+> "$GENOME_DIR/expanded_species_list.txt"
+cp "$DOWNLOAD_FILE" "$GENOME_DIR/expanded_species_list.txt"
 if [[ "$MODE" == "heavy" ]]; then
 echo "Warning: It is recommended to include no more than 2 genus to avoid excessive runtime and disk usage when --get-all-species is enabled."
 fi
