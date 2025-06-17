@@ -354,14 +354,20 @@ else
 GENOME_DIR=""
 echo "Default mode: using prebuilt BLAST database."
 fi
-# Set delimiter as a space
-if [[ -n "$TAXON_FILE" ]]; then
-if [[ ! -f "$TAXON_FILE" ]]; then
+# If a single value is provided for -d or -t instead of a file, create a temporary file
+if [[ -n "$DOWNLOAD_FILE" && ! -f "$DOWNLOAD_FILE" ]]; then
+tmp_download_file=$(mktemp)
+echo "$DOWNLOAD_FILE" > "$tmp_download_file"
+DOWNLOAD_FILE="$tmp_download_file"
+trap "rm -f '$tmp_download_file'" EXIT
+fi
+if [[ -n "$TAXON_FILE" && ! -f "$TAXON_FILE" ]]; then
 tmp_taxon_file=$(mktemp)
 echo "$TAXON_FILE" > "$tmp_taxon_file"
 TAXON_FILE="$tmp_taxon_file"
 trap "rm -f '$tmp_taxon_file'" EXIT
 fi
+# Set delimiter as a space
 DELIMITER=" "
 sed 's/[\t,]\+/ /g' "$TAXON_FILE" > "${TAXON_FILE}_processed"
 # Ensure if a taxon file is provided, the genus should be one of the target Enterobacteriaceae
