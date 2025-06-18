@@ -289,9 +289,6 @@ download_with_retry wget -q -O "$METADATA_FILE" "https://ftp.ncbi.nlm.nih.gov/ge
 if [[ "$GET_ALL_SPECIES" == true ]]; then
 > "$GENOME_DIR/expanded_species_list.txt"
 cp "$DOWNLOAD_FILE" "$GENOME_DIR/expanded_species_list.txt"
-if [[ "$MODE" == "heavy" ]]; then
-echo "Warning: It is recommended to include no more than 2 genus to avoid excessive runtime and disk usage when --get-all-species is enabled."
-fi
 fi
 
 mapfile -t taxa < "$DOWNLOAD_FILE"
