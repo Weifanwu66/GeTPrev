@@ -44,7 +44,7 @@ This tool is designed for estimating the prevalence of specific genes in bacteri
 
 * Complete‑genome downloads live under `complete_genome/`; draft‑genome iterations are stored separately under `draft_genome/`.  
 The script to download complete genomes and construct their corresponding BLAST DB is build_EB_complete_genomes_db.sh
-
+<pre>
 │   ├── Escherichia/
 │   │   ├── unclassified/
 │   │   ├── Escherichia_coli/
@@ -94,7 +94,7 @@ The script to download complete genomes and construct their corresponding BLAST 
 │   │   ├── Cronobacter_sakazakii/
 │   │   ├── Cronobacter_malonaticus/
 │   │   ├── ...
-
+</pre>
 ---
 
 ### BLAST Query & Analysis
