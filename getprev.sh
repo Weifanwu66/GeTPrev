@@ -72,55 +72,13 @@ while [[ "$#" -gt 0 ]]; do
         *) echo "Invalid option: $1"; usage; exit 1 ;;
     esac
 done
-
-# if a single value is provided for -d or -t instead of a file, create a temporary file
-if [[ -n "$DOWNLOAD_FILE" && ! -f "$DOWNLOAD_FILE" ]]; then
-tmp_download_file=$(mktemp)
-echo "$DOWNLOAD_FILE" > "$tmp_download_file"
-DOWNLOAD_FILE="$tmp_download_file"
-trap "rm -f '$tmp_download_file'" EXIT
-fi
-# standardize the delimiter
-if [[ -n "$DOWNLOAD_FILE" ]]; then
-sed -i -e 's/\r//g' -e 's/[\t,]\+/ /g' -e 's/^[[:space:]]*//; s/[[:space:]]*$//' "$DOWNLOAD_FILE"
-fi
-if [[ -n "$TAXON_FILE" && ! -f "$TAXON_FILE" ]]; then
-tmp_taxon_file=$(mktemp)
-echo "$TAXON_FILE" > "$tmp_taxon_file"
-TAXON_FILE="$tmp_taxon_file"
-trap "rm -f '$tmp_taxon_file'" EXIT
-fi
-
 # convert key file paths to absolute form
 GENE_FILE="$(readlink -f "$GENE_FILE")"
 [[ -n "$TAXON_FILE" ]] && TAXON_FILE="$(readlink -f "$TAXON_FILE")"
 [[ -n "$DOWNLOAD_FILE" ]] && DOWNLOAD_FILE="$(readlink -f "$DOWNLOAD_FILE")"
 OUTPUT_FILE="$(readlink -f "$OUTPUT_FILE")"
-
-if [[ -n "$TAXON_FILE" && -z "$DOWNLOAD_FILE" ]]; then
-# standardize the delimiter
-DELIMITER=" "
-sed 's/[\t,]\+/ /g' "$TAXON_FILE" > "${TAXON_FILE}_processed"
-awk -v delim="$DELIMITER" '
-BEGIN { FS=delim; OFS=delim }
-{ 
-gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1)
-gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
-genus = $1
-species_or_serotype = ($2 != "") ? $2 : ""
-# ensure if default database is used, the genus should be one of the target Enterobacteriaceae
-if (genus !~ /^(Salmonella|Escherichia|Citrobacter|Enterobacter|Klebsiella|Shigella|Cronobacter)$/) {
-print "Error: Invalid genus in taxon file. Allowed: Salmonella, Escherichia, Citrobacter, Enterobacter, Klebsiella, Shigella, Cronobacter in default. To proceed with other genus, use custom panel flag -d."
-print "Your line:", $0
-exit 1 
-}
-}' "${TAXON_FILE}_processed" || exit 1
-rm -f "${TAXON_FILE}_processed"
-fi
-
 source "${WORKDIR}/function.sh" || { echo "Error sourcing function.sh" >&2; exit 1; }
 check_dependencies
-
 #adapted from GEAbash_v1.0.0; seems to be working as expected
 #while getopts ':g:t::c::i::o::p::q::r::m::C::a::H::O::h::' flag; do
 #  case "${flag}" in
@@ -331,6 +289,9 @@ download_with_retry wget -q -O "$METADATA_FILE" "https://ftp.ncbi.nlm.nih.gov/ge
 if [[ "$GET_ALL_SPECIES" == true ]]; then
 > "$GENOME_DIR/expanded_species_list.txt"
 cp "$DOWNLOAD_FILE" "$GENOME_DIR/expanded_species_list.txt"
+if [[ "$MODE" == "heavy" ]]; then
+echo "Warning: It is recommended to include no more than 2 genus to avoid excessive runtime and disk usage when --get-all-species is enabled."
+fi
 fi
 
 mapfile -t taxa < "$DOWNLOAD_FILE"
@@ -393,7 +354,42 @@ else
 GENOME_DIR=""
 echo "Default mode: using prebuilt BLAST database."
 fi
-
+# If a single value is provided for -d or -t instead of a file, create a temporary file
+if [[ -n "$DOWNLOAD_FILE" && ! -f "$DOWNLOAD_FILE" ]]; then
+tmp_download_file=$(mktemp)
+echo "$DOWNLOAD_FILE" > "$tmp_download_file"
+DOWNLOAD_FILE="$tmp_download_file"
+trap "rm -f '$tmp_download_file'" EXIT
+fi
+if [[ -n "$TAXON_FILE" && ! -f "$TAXON_FILE" ]]; then
+tmp_taxon_file=$(mktemp)
+echo "$TAXON_FILE" > "$tmp_taxon_file"
+TAXON_FILE="$tmp_taxon_file"
+trap "rm -f '$tmp_taxon_file'" EXIT
+fi
+# Set delimiter as a space
+DELIMITER=" "
+sed 's/[\t,]\+/ /g' "$TAXON_FILE" > "${TAXON_FILE}_processed"
+# Ensure if a taxon file is provided, the genus should be one of the target Enterobacteriaceae
+if [[ -z "$DOWNLOAD_FILE" ]]; then
+awk -v delim="$DELIMITER" '
+BEGIN { FS=delim; OFS=delim }
+{ 
+gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1)
+gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
+genus = $1
+species_or_serotype = ($2 != "") ? $2 : ""
+if (genus !~ /^(Salmonella|Escherichia|Citrobacter|Enterobacter|Klebsiella|Shigella|Cronobacter)$/) {
+print "Error: Invalid genus in taxon file. Allowed: Salmonella, Escherichia, Citrobacter, Enterobacter, Klebsiella, Shigella, Cronobacter in default. To proceed with other genus, use custom panel flag -d."
+print "Your line:", $0
+exit 1 
+}
+}' "${TAXON_FILE}_processed" || exit 1
+else
+echo "Custom database mode detected - skipping taxon genus restriction check."
+fi
+rm -f "${TAXON_FILE}_processed"
+fi
 # start with core processing functions
 process_complete_genomes() {
 local taxon="$1"
