@@ -22,7 +22,7 @@ This tool is designed for estimating the prevalence of specific genes in bacteri
 * **Custom genome panel (`‑d <download_file>`):** Enables users to work outside the default Enterobacteriaceae genus or combine targets from both within and outside this group. Provide a plain text file with one taxon per line (e.g., genus, species, or serotype), or pass a single genus/species/serotype directly. The pipeline will download the corresponding complete genomes, build a custom BLAST database in real time, and run either LIGHT or HEAVY mode against that database.
 
 > **Note:** When using -d, you do not need to provide the -t flag for HEAVY mode—the custom panel already defines the target taxa.
-> **System requirements** Building either the pre‑built archive or a large custom panel requires significant disk and CPU resources. Run these steps on an HPC system with at least 1 TB free space.
+> **System requirements** Building either the pre‑built archive or a large custom panel requires significant memory (>= 128 GB).
 
 ### Advanced Options
 
@@ -33,8 +33,7 @@ This tool is designed for estimating the prevalence of specific genes in bacteri
   If a custom genome panel (`-d`) was previously built, the pipeline will skip rebuilding it unless forced. Use `-F true` to **delete and rebuild** all custom genome and BLAST database files from scratch.
 
 * **Expand all species under genus (`--get-all-species`)**  
-  When used with a genus in the `-d` file, this option will automatically retrieve **all species** under that genus using NCBI Taxonomy and classfiy these genomes into species level for each genus. It also generates an `expanded_species_list.txt` to serve as the actual target list.  
-  **⚠️ Recommended for up to 2 genus** when running in **heavy mode** (`-H heavy`) to avoid long runtimes and high disk usage.
+  When used with a genus in the `-d` file, this option will automatically retrieve **all species** under that genus using NCBI Taxonomy and classfiy these genomes into species level for each genus.
 
 > These options are especially useful for power users working on broad taxonomic groups or managing reproducible BLAST database builds across runs.
 ---
@@ -244,7 +243,7 @@ conda install -c bioconda <package_name>
 -----
 
 ## Example commands:
-
+> ⚠️ **Note:** if running on HPC, please replace ceres with a valid partition in your environment.
 ### 1. Run default light mode with 95% of identity and 90% of coverage (no target (-t) is defined, so the pipeline will loop through all taxonomic group available in pre-built database)
 
 ```bash
@@ -260,31 +259,31 @@ bash getprev.sh -g test/test_gene.fasta -t "Salmonella" -i 95 -c 90 -q ceres -r 
 ### 3. Run heavy mode with multiple targets listed in a text file
 
 ```bash
-bash getprev.sh -g test/test_gene.fasta -t test/test_taxon.txt -q ceres -r 08:00:00 -m 32G -C 16 -H heavy
+bash getprev.sh -g test/test_gene.fasta -t test/test_taxon.txt -q ceres -r 08:00:00 -m 64G -C 16 -H heavy
 ```
 
 ### 4. Custom genome panel — light mode
 
 ```bash
-bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 06:00:00 -m 24G -C 12
+bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 08:00:00 -m 16G -C 8
 ```
 
 ### 5. Custom genome panel — heavy mode
 
 ```bash
-bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 12:00:00 -m 48G -C 24 -H heavy
+bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 12:00:00 -m 64G -C 16 -H heavy
 ```
 
 ### 6. Force rebuilding the custom complete genomes database and overwrite previous results
 
 ```bash
-bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 02:00:00 -m 64G -C 36 -F true -O true
+bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 08:00:00 -m 64G -C 16 -F true -O true
 ```
 
 ### 7. Expand genus into species
 
 ```bash
-bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 02:00:00 -m 128G -C 72 --get-all-species
+bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 08:00:00 -m 64G -C 16 --get-all-species
 ```
 
 ### 8. Rebuild default EB database
