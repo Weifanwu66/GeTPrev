@@ -74,8 +74,8 @@ while [[ "$#" -gt 0 ]]; do
 done
 # convert key file paths to absolute form
 GENE_FILE="$(readlink -f "$GENE_FILE")"
-[[ -n "$TAXON_FILE" ]] && TAXON_FILE="$(readlink -f "$TAXON_FILE")"
-[[ -n "$DOWNLOAD_FILE" ]] && DOWNLOAD_FILE="$(readlink -f "$DOWNLOAD_FILE")"
+[[ -n "$TAXON_FILE" && -f "$TAXON_FILE" ]] && TAXON_FILE="$(readlink -f "$TAXON_FILE")"
+[[ -n "$DOWNLOAD_FILE" && -f "$DOWNLOAD_FILE" ]] && DOWNLOAD_FILE="$(readlink -f "$DOWNLOAD_FILE")"
 OUTPUT_FILE="$(readlink -f "$OUTPUT_FILE")"
 source "${WORKDIR}/function.sh" || { echo "Error sourcing function.sh" >&2; exit 1; }
 check_dependencies
@@ -260,6 +260,15 @@ exit 1
 fi
 # Output directory setup
 mkdir -p "$BLAST_RESULT_DIR" "$FILTERED_BLAST_RESULT_DIR"
+
+# if a single value is provided for -d instead of a file, create a temporary file
+if [[ -n "$DOWNLOAD_FILE" && ! -f "$DOWNLOAD_FILE" ]]; then
+tmp_download_file=$(mktemp)
+echo "$DOWNLOAD_FILE" > "$tmp_download_file"
+DOWNLOAD_FILE="$tmp_download_file"
+trap "rm -f '$tmp_download_file'" EXIT
+fi
+
 # Handle custom download if provided
 if [[ -n "${DOWNLOAD_FILE:-}" ]]; then
 echo "Custom panel download requested."
@@ -354,13 +363,7 @@ else
 GENOME_DIR=""
 echo "Default mode: using prebuilt BLAST database."
 fi
-# If a single value is provided for -d or -t instead of a file, create a temporary file
-if [[ -n "$DOWNLOAD_FILE" && ! -f "$DOWNLOAD_FILE" ]]; then
-tmp_download_file=$(mktemp)
-echo "$DOWNLOAD_FILE" > "$tmp_download_file"
-DOWNLOAD_FILE="$tmp_download_file"
-trap "rm -f '$tmp_download_file'" EXIT
-fi
+# if a single value is provided for -t instead of a file, create a temporary file
 if [[ -n "$TAXON_FILE" && ! -f "$TAXON_FILE" ]]; then
 tmp_taxon_file=$(mktemp)
 echo "$TAXON_FILE" > "$tmp_taxon_file"
