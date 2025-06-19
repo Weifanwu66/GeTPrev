@@ -372,6 +372,7 @@ trap "rm -f '$tmp_taxon_file'" EXIT
 fi
 # Set delimiter as a space
 DELIMITER=" "
+if [[ -n "$TAXON_FILE" ]]; then
 sed 's/[\t,]\+/ /g' "$TAXON_FILE" > "${TAXON_FILE}_processed"
 # Ensure if a taxon file is provided, the genus should be one of the target Enterobacteriaceae
 if [[ -z "$DOWNLOAD_FILE" ]]; then
@@ -392,6 +393,8 @@ else
 echo "Custom database mode detected - skipping taxon genus restriction check."
 fi
 rm -f "${TAXON_FILE}_processed"
+else
+echo "Custom database mode detected - skipping taxon genus restriction check."
 fi
 # start with core processing functions
 process_complete_genomes() {
