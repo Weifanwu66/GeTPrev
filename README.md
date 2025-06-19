@@ -22,7 +22,7 @@ This tool is designed for estimating the prevalence of specific genes in bacteri
 * **Custom genome panel (`‑d <download_file>`):** Enables users to work outside the default Enterobacteriaceae genus or combine targets from both within and outside this group. Provide a plain text file with one taxon per line (e.g., genus, species, or serotype), or pass a single genus/species/serotype directly. The pipeline will download the corresponding complete genomes, build a custom BLAST database in real time, and run either LIGHT or HEAVY mode against that database.
 
 > **Note:** When using -d, you do not need to provide the -t flag for HEAVY mode—the custom panel already defines the target taxa.
-> **System requirements** Building either the pre‑built archive or a large custom panel requires significant memory (>= 128 GB).
+> **System requirements** Building either the pre‑built archive or a large custom panel requires significant memory (>= 64 GB).
 
 ### Advanced Options
 
@@ -131,7 +131,7 @@ Built‑in SLURM support enables:
 
 * **Queue compatibility**: Tested on partitions like `ceres`, `short`, and `long` on SCINet clusters (Ceres, Atlas).
 
-> **Important:** It is recommended to run database‑building steps (`build_EB_complete_genomes_database.sh`, custom complete genome panels via `‑d`) on HPC nodes with ≥ 250 GB free storage and appropriate wall‑time requests (e.g., `‑r 12:00:00`).
+> **Important:** It is recommended to run database‑building steps (`build_EB_complete_genomes_database.sh`, custom complete genome panels via `‑d`) on HPC nodes with ≥ 250 GB free storage.
 
 #### Example SLURM submission (automatic through EGP)
 
@@ -257,17 +257,15 @@ ACCOUNT=my_account QUEUE=your_queue RAM=256GB CPUS=24 RUNTIME=08:00:00 bash buil
 ```
 
 If you are running this script on a system without a job scheduler, and your machine has enough available memory (>=128 GB), you can simpy run:
+
 ```bash
 bash build_EB_complete_genomes_db.sh
 ```
 
 ## Example commands:
-<<<<<<< Updated upstream
+
 > ⚠️ **Note:** if running on HPC, please replace ceres with a valid partition in your environment. Please download the pre-built database from Ag Data Commons or download the database locally when working with the default database.
 
-=======
-> ⚠️ **Note:** if running on HPC, please replace ceres with a valid partition in your environment..Please build the default database locally or download it from Ag Data commons when working with default database.
->>>>>>> Stashed changes
 ### 1. Run default light mode with 95% of identity and 90% of coverage (no target (-t) is defined, so the pipeline will loop through all taxonomic group available in pre-built database)
 
 ```bash
