@@ -242,9 +242,32 @@ conda install -c bioconda <package_name>
 
 -----
 
+## Build default database locally
+To download and build the default Enterobacteriaceae database on HPC systems with job schedulers (including 7 genus: *Salmonella, Escherichia, Enterobacter, Klebsiella, Cronobacter, Citrobacter,* and *Shigella*), run:
+
+```bash
+ACCOUNT=my_account QUEUE=your_queue bash build_EB_complete_genomes_db.sh
+```
+> Note: Many HPC systems require users to specify a job ACCOUNT and/or QUEUE for successful job submission. If your system does not require them, you may omit these variable.
+
+You may override the defaults by setting environment variables when running the script. The default resources are: RAM=128 GB, CPUS=16, RUNTIME=12:00:00.
+
+```bash
+ACCOUNT=my_account QUEUE=your_queue RAM=256GB CPUS=24 RUNTIME=08:00:00 bash build_EB_complete_genomes_db.sh
+```
+
+If you are running this script on a system without a job scheduler, and your machine has enough available memory (>=128 GB), you can simpy run:
+```bash
+bash build_EB_complete_genomes_db.sh
+```
+
 ## Example commands:
+<<<<<<< Updated upstream
 > ⚠️ **Note:** if running on HPC, please replace ceres with a valid partition in your environment. Please download the pre-built database from Ag Data Commons or download the database locally when working with the default database.
 
+=======
+> ⚠️ **Note:** if running on HPC, please replace ceres with a valid partition in your environment..Please build the default database locally or download it from Ag Data commons when working with default database.
+>>>>>>> Stashed changes
 ### 1. Run default light mode with 95% of identity and 90% of coverage (no target (-t) is defined, so the pipeline will loop through all taxonomic group available in pre-built database)
 
 ```bash
@@ -286,14 +309,6 @@ bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 0
 ```bash
 bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 08:00:00 -m 64G -C 16 --get-all-species
 ```
-
-### 8. Rebuild default EB database
-
-```bash
-sbatch build_EB_complete_genomes_database.sh
-```
-> This script downloads and formats the default Enterobacteriaceae database.  
-> It includes 7 genus: *Salmonella, Escherichia, Enterobacter, Klebsiella, Cronobacter, Citrobacter,* and *Shigella*.  
 
 ---
 
