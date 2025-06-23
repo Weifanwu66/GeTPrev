@@ -287,7 +287,6 @@ mkdir -p "$genome_dir/Salmonella_bongori"
 mkdir -p "$genome_dir/unclassified"
 mapfile -t subspecies_list < "$subspecies_list_file"
 mapfile -t serotype_list < "$serotype_list_file"
-mapfile -t mono_aliases < "$MONOPHASIC_TYPHIMURIUM_LIST"
 mapfile -t deduped_seros < "$DUPLICATE_SEROTYPE_LIST"
 for subsp in "${subspecies_list[@]}"; do
 [[ -z "$subsp" ]] && continue
@@ -324,7 +323,7 @@ if echo "$organism_name" | grep -Pq "subsp\.?\s*${subsp}\b"; then
 matched_subsp=true
 base_path="$base_path/$subsp"
 matched_sero=false
-for alias in "${mono_aliases[@]}"; do
+for alias in "${deduped_seros[@]}"; do
 if [[ "$organism_name" == *"$alias"* ]]; then
 target_dir="$base_path/monophasic_Typhimurium"
 matched_sero=true
