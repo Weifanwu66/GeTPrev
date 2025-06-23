@@ -244,6 +244,11 @@ else
     BLAST_THREADS="$(get_cpus)"
 fi
 
+# Download the genbank assembly bacteria metadata
+METADATA_FILE="$DATABASE_DIR/assembly_summary_bacteria.txt"
+echo "Downloading latest assembly metadata"
+download_with_retry wget -q -O "$METADATA_FILE" "https://ftp.ncbi.nlm.nih.gov/genomes/genbank/bacteria/assembly_summary.txt" 
+
 if [[ "$OVERWRITE" == true ]]; then
 rm -rf "$BLAST_RESULT_DIR" "$FILTERED_BLAST_RESULT_DIR" "$DRAFT_BLAST_RESULT_DIR" "$DRAFT_BLAST_DB_DIR" "$FILTERED_BLAST_RESULT_DIR" "$DRAFT_GENOMES_DIR" "$FILTERED_DRAFT_BLAST_RESULT_DIR" "$OUTPUT_FILE"
 fi
@@ -292,15 +297,9 @@ fi
 TOTAL_CPUS=$(get_cpus)
 MAX_PARALLEL_JOBS=$(( TOTAL_CPUS * 2 / 3 ))
 
-METADATA_FILE="$DATABASE_DIR/assembly_summary_bacteria.txt"
-echo "Downloading latest assembly metadata"
-download_with_retry wget -q -O "$METADATA_FILE" "https://ftp.ncbi.nlm.nih.gov/genomes/genbank/bacteria/assembly_summary.txt"
 if [[ "$GET_ALL_SPECIES" == true ]]; then
 > "$GENOME_DIR/expanded_species_list.txt"
 cp "$DOWNLOAD_FILE" "$GENOME_DIR/expanded_species_list.txt"
-if [[ "$MODE" == "heavy" ]]; then
-echo "Warning: It is recommended to include no more than 2 genus to avoid excessive runtime and disk usage when --get-all-species is enabled."
-fi
 fi
 
 mapfile -t taxa < "$DOWNLOAD_FILE"
@@ -424,7 +423,7 @@ blast_db_name="${blast_db_name//./}"
 local total_draft_genomes=$(get_total_genomes_count "$taxon" "contig")
 read -r sample_size iterations <<< "$(calculate_sample_size_and_iterations "$total_draft_genomes")"
 echo "Processing $taxon | Total draft genomes: $total_draft_genomes. Running $iterations iterations (max 20)."
-local max_parallel_iter=3
+local max_parallel_iter=10
 (( iterations < max_parallel_iter )) && max_parallel_iter=$iterations
 local i
 for ((i=1; i<=iterations; i++)); do

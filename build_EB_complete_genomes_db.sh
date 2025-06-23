@@ -7,7 +7,7 @@ set -euo pipefail
 JOB_NAME=${JOB_NAME:-build_EB_complete_genomes_db}
 QUEUE=${QUEUE:-}
 ACCOUNT=${ACCOUNT:-}
-RUNTIME=${RUNTIME:-04:00:00}
+RUNTIME=${RUNTIME:-12:00:00}
 MEMORY=${RAM:-128G}
 THREADS=${CPUS:-16}
 
