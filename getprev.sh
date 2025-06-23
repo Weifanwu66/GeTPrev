@@ -424,7 +424,7 @@ blast_db_name="${blast_db_name//./}"
 local total_draft_genomes=$(get_total_genomes_count "$taxon" "contig")
 read -r sample_size iterations <<< "$(calculate_sample_size_and_iterations "$total_draft_genomes")"
 echo "Processing $taxon | Total draft genomes: $total_draft_genomes. Running $iterations iterations (max 20)."
-local max_parallel_iter=3
+local max_parallel_iter=10
 (( iterations < max_parallel_iter )) && max_parallel_iter=$iterations
 local i
 for ((i=1; i<=iterations; i++)); do
