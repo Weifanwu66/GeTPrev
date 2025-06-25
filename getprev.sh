@@ -76,7 +76,7 @@ done
 GENE_FILE="$(readlink -f "$GENE_FILE")"
 [[ -n "$TAXON_FILE" && -f "$TAXON_FILE" ]] && TAXON_FILE="$(readlink -f "$TAXON_FILE")"
 [[ -n "$DOWNLOAD_FILE" && -f "$DOWNLOAD_FILE" ]] && DOWNLOAD_FILE="$(readlink -f "$DOWNLOAD_FILE")"
-OUTPUT_FILE="$(readlink -f "$OUTPUT_FILE")"
+OUTPUT_FILE="$(readlink -f "$OUTPUT_FILE" || echo "$OUTPUT_FILE")"
 source "${WORKDIR}/function.sh" || { echo "Error sourcing function.sh" >&2; exit 1; }
 check_dependencies
 #adapted from GEAbash_v1.0.0; seems to be working as expected
