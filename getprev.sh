@@ -459,9 +459,13 @@ else
 TAXON_LIST=$(find "$BLAST_DB_DIR" -name "*.nsq" -exec basename {} .nsq \; | \
 sed -E '/[._][0-9]{2}$/s/[._][0-9]{2}$//' | sort -u |  sed 's/_/ /g' | sed -E 's/subsp /subsp. /g')
 fi
-# Process each taxon in TAXON_LIST
+# Process each taxon in TAXON_LIST using parallel summarization
+MAX_PARALLEL_SUMMARY=$(( $(get_cpus) * 2 / 3 ))
+(( MAX_PARALLEL_SUMMARY < 1 )) && MAX_PARALLEL_SUMMARY = 1
+TMP_SUMMARY_DIR=$(mktemp -d "${WORKDIR}/summary_tmp.XXXXXX")
 echo "$TAXON_LIST" | while IFS= read -r taxon; do
 [[ -z "$taxon" ]] && continue
+(
 echo "Processing $taxon in $MODE mode"
 process_complete_genomes "$taxon"
 [[ "$MODE" == "heavy" ]] && process_draft_genomes "$taxon"
@@ -481,6 +485,7 @@ GENE_WITH_HITS=$(awk '{print $1}' "$FILTERED_BLAST_RESULT_DIR/filtered_${local_t
 GENE_WITH_HITS=$(echo "$GENE_WITH_HITS" | sort -u)
 # Process all genes in query gene file
 mapfile -t ALL_GENES < <(grep "^>" "$GENE_FILE" | sed 's/>//' | awk '{print $1}')
+TMP_OUT="${TMP_SUMMARY_DIR}/${local_taxon}.csv"
 for GENE_ID in "${ALL_GENES[@]}"; do
 if grep -qx -- "$GENE_ID" <<< "$GENE_WITH_HITS" 2>/dev/null || true; then
 COMPLETE_GENOMES_WITH_TARGET_GENES=$(awk -v gene="$GENE_ID" '$1 == gene {split($2, a, "|"); print a[1]}' "$FILTERED_BLAST_RESULT_DIR/filtered_${local_taxon}_complete_blast_results.txt" 2>/dev/null | sort -u | wc -l)
@@ -502,18 +507,23 @@ else
 PERCENT_WITH_TARGET_GENES_COMPLETE_GENOMES=0
 fi
 if [[ "$MODE" == "heavy" ]]; then
-echo -e "$taxon,$GENE_ID,$MIN_COVERAGE,$MIN_IDENTITY,$TOTAL_DRAFT_GENOMES,$TOTAL_COMPLETE_GENOMES,$DRAFT_SAMPLE_SIZE,$ITERATIONS,$COMPLETE_GENOMES_WITH_TARGET_GENES,$AVERAGE_DRAFT_GENOMES_WITH_TARGET_GENES,${PERCENT_WITH_TARGET_GENES_COMPLETE_GENOMES}%,${PERCENT_WITH_TARGET_GENES_DRAFT_GENOMES}%" >> "$OUTPUT_FILE"
+echo -e "$taxon,$GENE_ID,$MIN_COVERAGE,$MIN_IDENTITY,$TOTAL_DRAFT_GENOMES,$TOTAL_COMPLETE_GENOMES,$DRAFT_SAMPLE_SIZE,$ITERATIONS,$COMPLETE_GENOMES_WITH_TARGET_GENES,$AVERAGE_DRAFT_GENOMES_WITH_TARGET_GENES,${PERCENT_WITH_TARGET_GENES_COMPLETE_GENOMES}%,${PERCENT_WITH_TARGET_GENES_DRAFT_GENOMES}%" >> "$TMP_OUT"
 else
-echo -e "$taxon,$GENE_ID,$MIN_COVERAGE,$MIN_IDENTITY,$TOTAL_DRAFT_GENOMES,$TOTAL_COMPLETE_GENOMES,$COMPLETE_GENOMES_WITH_TARGET_GENES,${PERCENT_WITH_TARGET_GENES_COMPLETE_GENOMES}%"  >> "$OUTPUT_FILE"
+echo -e "$taxon,$GENE_ID,$MIN_COVERAGE,$MIN_IDENTITY,$TOTAL_DRAFT_GENOMES,$TOTAL_COMPLETE_GENOMES,$COMPLETE_GENOMES_WITH_TARGET_GENES,${PERCENT_WITH_TARGET_GENES_COMPLETE_GENOMES}%"  >> "$TMP_OUT"
 fi
 else
 # If no hits were found for the gene in a serotype, output is recorded as 0%
 if [[ "$MODE" == "heavy" ]]; then
-echo -e "$taxon,$GENE_ID,$MIN_COVERAGE,$MIN_IDENTITY,$TOTAL_DRAFT_GENOMES,$TOTAL_COMPLETE_GENOMES,$DRAFT_SAMPLE_SIZE,$ITERATIONS,0,0,0%,0%" >> "$OUTPUT_FILE"
+echo -e "$taxon,$GENE_ID,$MIN_COVERAGE,$MIN_IDENTITY,$TOTAL_DRAFT_GENOMES,$TOTAL_COMPLETE_GENOMES,$DRAFT_SAMPLE_SIZE,$ITERATIONS,0,0,0%,0%" >> "$TMP_OUT"
 else
-echo -e "$taxon,$GENE_ID,$MIN_COVERAGE,$MIN_IDENTITY,$TOTAL_DRAFT_GENOMES,$TOTAL_COMPLETE_GENOMES,0,0%" >> "$OUTPUT_FILE"
+echo -e "$taxon,$GENE_ID,$MIN_COVERAGE,$MIN_IDENTITY,$TOTAL_DRAFT_GENOMES,$TOTAL_COMPLETE_GENOMES,0,0%" >> "$TMP_OUT"
 fi
 fi
 done
+) &
+while (( $(jobs -r | wc -l) >= MAX_PARALLEL_SUMMARY )); do sleep 1; done
 done
+wait
+cat "$TMP_SUMMARY_DIR"/*.csv >> "$OUTPUT_FILE"
+rm -rf "$TMP_SUMMARY_DIR"
 echo "Analysis complete. Results saved in $OUTPUT_FILE"
