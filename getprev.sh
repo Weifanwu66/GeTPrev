@@ -239,9 +239,9 @@ done
 
 # determine number of threads for blastn operations
 if [[ "$hpc" == "T" ]]; then
-    BLAST_THREADS="$hpcthreads"
+BLAST_THREADS="$hpcthreads"
 else
-    BLAST_THREADS="$(get_cpus)"
+BLAST_THREADS="$(get_cpus)"
 fi
 
 # Download the genbank assembly bacteria metadata
@@ -276,7 +276,7 @@ fi
 
 # Handle custom download if provided
 if [[ -n "${DOWNLOAD_FILE:-}" ]]; then
-echo "Custom panel download requested."
+echo "Custom panel download requested"
 GENOME_DIR="$CUSTOM_GENOMES_DIR"
 CUSTOM_PANEL_CHECKPOINT="$GENOME_DIR/.custom_download_complete"
 mkdir -p "$GENOME_DIR"
@@ -388,12 +388,15 @@ print "Your line:", $0
 exit 1 
 }
 }' "${TAXON_FILE}_processed" || exit 1
-else
-echo "Custom database mode detected - skipping taxon genus restriction check."
 fi
 rm -f "${TAXON_FILE}_processed"
-else
-echo "Custom database mode detected - skipping taxon genus restriction check."
+fi
+if [[ "$MODE" == "light" && -z "$DOWNLOAD_FILE" && -z "$TAXON_FILE" ]]; then
+echo "Default database mode (light): no target taxa list provided, scanning all available taxa in the prebuilt BLAST database."
+elif [[ -n "$DOWNLOAD_FILE" ]]; then
+echo "Custom database mode: skipping taxon genus restriction check (user-provided genome list)."
+elif [[ -n "$TAXON_FILE" ]]; then
+echo "Default database mode: restricted to taxa listed in the provided file."
 fi
 # start with core processing functions
 process_complete_genomes() {
