@@ -607,9 +607,15 @@ read -ra words <<< "$input"
 if [[ "${words[1]}" == "monophasic" ]]; then
 taxon_name="Salmonella enterica subsp. enterica serovar monophasic Typhimurium"
 elif [[ "${words[1]}" =~ ^[A-Z] || "${words[1]}" =~ ":" ]]; then
-taxon_name="Salmonella enterica subsp. enterica serovar ${words[1]}"
+serovar="${words[@]:1}"
+taxon_name="Salmonella enterica subsp. enterica serovar ${serovar}"
+else
+serovar="${words[@]:1}"
+if [[ -n "$serovar" ]]; then
+taxon_name="Salmonella enterica subsp. enterica serovar ${serovar}"
 else
 taxon_name="$input"
+fi
 fi
 echo "$taxon_name"
 }
