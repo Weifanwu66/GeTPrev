@@ -604,6 +604,10 @@ function extract_taxon_info() {
 local input="$1"
 local taxon_name=""
 read -ra words <<< "$input"
+if [[ "${words[0]}" != "Salmonella" ]]; then
+echo "$input"
+return
+fi
 if [[ "${words[1]}" == "monophasic" ]]; then
 taxon_name="Salmonella enterica subsp. enterica serovar monophasic Typhimurium"
 elif [[ "${words[1]}" =~ ^[A-Z] || "${words[1]}" =~ ":" ]]; then
