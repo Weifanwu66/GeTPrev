@@ -10,7 +10,7 @@ ACCOUNT=${ACCOUNT:-}
 RUNTIME=${RUNTIME:-12:00:00}
 MEMORY=${RAM:-128G}
 THREADS=${CPUS:-16}
-
+LOCAL_RUN=${LOCAL_RUN:-false}
 WORKDIR=$(pwd)
 DATABASE_DIR="$WORKDIR/database"
 GENOME_DIR="$DATABASE_DIR/complete_genomes"
@@ -23,8 +23,7 @@ SUBSPECIES_LIST_FILE="$GENOME_DIR/Salmonella/salmonella_subspecies_list.txt"
 METADATA_FILE="$DATABASE_DIR/assembly_summary_bacteria.txt"
 export FORCE_UPDATE="true"
 
-if [[ -n "${SLURM_JOB_ID:-}" || -n "${JOB_ID:-}" ]]; then
-echo "Running inside a job environment."
+main_workflow() {
 source function.sh || { echo "Error sourcing function.sh" >&2; exit 1; }
 mkdir -p "$GENOME_DIR"
 mkdir -p "$BLAST_DB_DIR"
@@ -99,10 +98,17 @@ build_blastdb_for_EB_default "$GENOME_DIR" "$BLAST_DB_DIR"
 
 generate_directory_csv "$GENOME_DIR"
 echo "[$(date '+%F %T')] Default Enterobacteriaceae database build complete"
-exit 0
-fi
+}
 
-if command -v sbatch &>/dev/null && sinfo &>/dev/null; then
+if [[ -n "${SLURM_JOB_ID:-}" || -n "${JOB_ID:-}" ]]; then
+echo "Running inside a job environment."
+main_workflow
+exit 0
+elif [[ "$LOCAL_RUN" == "true" ]]; then
+echo "Already running locally. Proceeding with main workflow."
+main_workflow
+exit 0
+elif command -v sbatch &>/dev/null && sinfo &>/dev/null; then
 echo "SLURM detected. Submitting job"
 cp slurm.sh slurm2.sh
 sed -i "s/name/$JOB_NAME/g" slurm2.sh
@@ -131,7 +137,7 @@ qsub sge2.sh
 rm -f sge2.sh
 exit 0
 else
-echo "No job scheduler detected, running locally"
+echo "No job scheduler detected, checking resources for local run..."
 REQUIRED_RAM_GB=64
 AVAILABLE_RAM_GB=$(free -g | awk '/^Mem:/ {print $7}')
 echo "Available RAM: ${AVAILABLE_RAM_GB}GB"
@@ -139,6 +145,6 @@ if (( AVAILABLE_RAM_GB < REQUIRED_RAM_GB )); then
 echo "Requires at least ${REQUIRED_RAM_GB}GB RAM. Only ${AVAILABLE_RAM_GB}GB available"
 exit 1
 fi
-echo "Resources are sufficient. Running script locally"
-exec bash "$0"
+echo "Resources are sufficient. Re-invoking script locally with LOCAL_RUN=true"
+exec env LOCAL_RUN=true bash "$0"
 fi
