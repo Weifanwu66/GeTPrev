@@ -5,6 +5,12 @@ channels:
  - defaults
 dependencies:
  - python=3.9
+ - r-base=4.2
  - ncbi-genome-download=0.3.3
  - blast=2.16.0
  - entrez-direct=22.4
+ - biopython
+ - primer3-py
+ - pandas
+ - r-tidyverse
+ - r-stringr
