@@ -258,6 +258,13 @@ echo "Error! Please provide a gene sequence file!"
 usage
 exit 1
 fi
+# Format the fasta file if the gene file ends with cds_from_genomic.fna
+if [[ "$GENE_FILE" == "*cds_from_genomic.fna" ]]; then
+echo "Detected NCBI CDS fasta file. Reformatting headers.."
+formatted_fasta="${WORKDIR}/formatted_gene.fasta"
+normalize_fasta_headers "$GENE_FILE" "$formatted_fasta"
+GENE_FILE="$formatted_fasta"
+fi
 # Ensure if heavy mode is enabled, a taxon file must be provided
 if [[ "$MODE" == "heavy" && -z "$TAXON_FILE" && -z "$DOWNLOAD_FILE" ]]; then
 echo "Error: A taxon file is required in heavy mode using default database."

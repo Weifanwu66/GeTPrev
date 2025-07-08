@@ -33,6 +33,13 @@ nproc
 fi
 }
 
+# format gene file FASTA headers if user provides a CDS FASTA file from NCBI
+function normalize_fasta_headers() {
+local input_fasta="$1"
+local output_fasta="$2"
+sed -E 's/^>.*\[gene=([^]]+)\].*\[locus_tag=([^]]+)\].*/>\1|\2/; t; s/^>.*\[locus_tag=([^]]+)\].*/>\1/' "$input_fasta" > "$output_fasta"
+}
+
 # protection mechanism with download retry
 function download_with_retry() {
 local retries=3
