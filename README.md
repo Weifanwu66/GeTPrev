@@ -215,7 +215,7 @@ conda --version
 To run this pipeline, set up a Conda environment with the required dependencies.
 1. Clone the Repository
 ```sh
-git clone https://github.com/Weifanwu66/GeTPrev.git getprev
+git clone --branch main --depth 1 https://github.com/Weifanwu66/GeTPrev.git getprev
 cd getprev
 ```
 2. Create and Activate the Conda Environment
