@@ -244,11 +244,6 @@ else
 BLAST_THREADS="$(get_cpus)"
 fi
 
-# Download the genbank assembly bacteria metadata
-METADATA_FILE="$DATABASE_DIR/assembly_summary_bacteria.txt"
-echo "Downloading latest assembly metadata"
-download_with_retry wget -q -O "$METADATA_FILE" "https://ftp.ncbi.nlm.nih.gov/genomes/genbank/bacteria/assembly_summary.txt" 
-
 if [[ "$OVERWRITE" == true ]]; then
 rm -rf "$BLAST_RESULT_DIR" "$FILTERED_BLAST_RESULT_DIR" "$DRAFT_BLAST_RESULT_DIR" "$DRAFT_BLAST_DB_DIR" "$FILTERED_BLAST_RESULT_DIR" "$DRAFT_GENOMES_DIR" "$FILTERED_DRAFT_BLAST_RESULT_DIR" "$OUTPUT_FILE"
 fi
@@ -258,6 +253,7 @@ echo "Error! Please provide a gene sequence file!"
 usage
 exit 1
 fi
+
 # Format the fasta file if the gene file ends with cds_from_genomic.fna
 if [[ "$GENE_FILE" == "*cds_from_genomic.fna" ]]; then
 echo "Detected NCBI CDS fasta file. Reformatting headers.."
@@ -265,13 +261,27 @@ formatted_fasta="${WORKDIR}/formatted_gene.fasta"
 normalize_fasta_headers "$GENE_FILE" "$formatted_fasta"
 GENE_FILE="$formatted_fasta"
 fi
+
 # Ensure if heavy mode is enabled, a taxon file must be provided
 if [[ "$MODE" == "heavy" && -z "$TAXON_FILE" && -z "$DOWNLOAD_FILE" ]]; then
 echo "Error: A taxon file is required in heavy mode using default database."
 exit 1
 fi
+
+if [[ -z "$DOWNLOAD_FILE" ]]; then
+if [[ ! -d "$BLAST_DB_DIR" || -z $(ls -A "$BLAST_DB_DIR"/*.nsq 2>/dev/null) ]]; then
+echo "Error: No complete genome BLAST database detected in $BLAST_DB_DIR."
+echo "Please download or build the default BLAST database first, or include -d to specify a custom database."
+exit 1
+fi
+fi
+
 # Output directory setup
 mkdir -p "$BLAST_RESULT_DIR" "$FILTERED_BLAST_RESULT_DIR"
+# Download the genbank assembly bacteria metadata
+METADATA_FILE="$DATABASE_DIR/assembly_summary_bacteria.txt"
+echo "Downloading latest assembly metadata"
+download_with_retry wget -q -O "$METADATA_FILE" "https://ftp.ncbi.nlm.nih.gov/genomes/genbank/bacteria/assembly_summary.txt" 
 
 # if a single value is provided for -d instead of a file, create a temporary file
 if [[ -n "$DOWNLOAD_FILE" && ! -f "$DOWNLOAD_FILE" ]]; then
