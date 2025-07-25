@@ -611,22 +611,28 @@ function extract_taxon_info() {
 local input="$1"
 local taxon_name=""
 read -ra words <<< "$input"
+# If not Salmonella, return as is
 if [[ "${words[0]}" != "Salmonella" ]]; then
 echo "$input"
 return
 fi
+# Species-level names
+if [[ "$input" == "Salmonella enterica" || "$input" == "Salmonella bongori" ]]; then
+echo "$input"
+return
+fi
+# Subspecies-level names
+if [[ "$input" =~ ^Salmonella\ enterica\ subsp\. ]]; then
+echo "$input"
+return
+fi
+# Special case: monophasic Typhimurium
 if [[ "${words[1]}" == "monophasic" ]]; then
 taxon_name="Salmonella enterica subsp. enterica serovar monophasic Typhimurium"
-elif [[ "${words[1]}" =~ ^[A-Z] || "${words[1]}" =~ ":" ]]; then
-serovar="${words[@]:1}"
-taxon_name="Salmonella enterica subsp. enterica serovar ${serovar}"
 else
-serovar="${words[@]:1}"
-if [[ -n "$serovar" ]]; then
+# Otherwise, treat as serovar
+local serovar="${words[@]:1}"
 taxon_name="Salmonella enterica subsp. enterica serovar ${serovar}"
-else
-taxon_name="$input"
-fi
 fi
 echo "$taxon_name"
 }
@@ -666,23 +672,21 @@ if [[ "$assembly_level" == "complete" ]]; then
 if [[ -f "${db_path}.nhr" || -f "${db_path}.00.nhr" ]]; then
 total_genomes=$(blastdbcmd -db "$db_path" -entry all -outfmt "%t" | cut -d'|' -f1 | sort -u | wc -l)
 else
-echo "No genomes found for $input" >&2
+echo "No complete-genome BLAST DB found for '$query' at $db_path" >&2
 total_genomes=0
 fi
 else
-if [[ "$query" == "Salmonella enterica subsp. enterica serovar Typhi" ]]; then
-all_accessions=$(ncbi-genome-download bacteria --genera "$query" --assembly-level "$assembly_level" --section genbank --dry-run | tail -n +2 | awk -F '/' '{print $NF}' | awk '{print $1}')
+if [[ "$query" == "Salmonella enterica subsp. enterica serovar Typhi" ]] || \
+   [[ "$query" == "Salmonella enterica subsp. enterica serovar Typhimurium" ]]; then
+all_accessions=$(ncbi-genome-download bacteria --genera "$query" \
+    --assembly-level "$assembly_level" --section genbank --dry-run | tail -n +2 | awk -F '/' '{print $NF}' | awk '{print $1}')
 strict_accessions=$(get_strict_accessions "$query")
-total_genomes=$(comm -12 <(echo "$all_accessions" | sort) <(echo "$strict_accessions" | sort) | wc -l)
-elif [[ "$query" == "Salmonella enterica subsp. enterica serovar Typhimurium" ]]; then
-all_accessions=$(ncbi-genome-download bacteria --genera "$query" --assembly-level "$assembly_level" --section genbank --dry-run | tail -n +2 | awk -F '/' '{print $NF}' | awk '{print $1}')
-strict_accessions=$(get_strict_accessions "$query") 
 total_genomes=$(comm -12 <(echo "$all_accessions" | sort) <(echo "$strict_accessions" | sort) | wc -l)
 elif [[ "$query" == "Salmonella enterica subsp. enterica serovar monophasic Typhimurium" ]]; then
 total_genomes=0
 while read -r name; do
 count=$(ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $name" \
- --assembly-level "$assembly_level" --section genbank --dry-run | tail -n +2 | grep -vi 'serovar 43:a:1,7' | wc -l)
+    --assembly-level "$assembly_level" --section genbank --dry-run | tail -n +2 | grep -vi 'serovar 43:a:1,7' | wc -l)
 ((total_genomes += count))
 done < "$MONOPHASIC_TYPHIMURIUM_LIST"
 else
