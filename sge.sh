@@ -7,5 +7,6 @@
 #$ -cwd
 #$ -P account
 ##$ -S /bin/bash #smrt.q only?
+export PATH="$HOME/.conda/envs/getprev/bin:$PATH" #Pass conda environment to the scheduler
 vars
 command
