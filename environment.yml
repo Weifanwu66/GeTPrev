@@ -8,3 +8,5 @@ dependencies:
  - ncbi-genome-download=0.3.3
  - blast=2.16.0
  - entrez-direct=22.4
+ - bc=1.07.1
+ - tmux=3.3a

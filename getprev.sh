@@ -331,9 +331,17 @@ tmp_subsp_file=$(mktemp "${GENOME_DIR}/temp_subsp_list.XXXXXX")
 echo "$subsp" > "$tmp_subsp_file"
 download_salmonella_subsp "$tmp_subsp_file"
 rm -f "$tmp_subsp_file"
-elif [[ "$taxon" =~ ^Salmonella( enterica subsp\.?\ enterica serovar)?[[:space:]]+([[:alnum:][:punct:]]+[[:space:]]?[[:alnum:][:punct:]]*)$ ]]; then
-serotype="${BASH_REMATCH[2]}"
+elif [[ "$taxon" =~ ^Salmonella\ enterica\ subsp\.?\ enterica\ serovar[[:space:]]+([A-Za-z0-9_]+)$ ]]; then
+serotype="${BASH_REMATCH[1]}"
 echo "Detected Salmonella serotype: $serotype"
+tmp_sero_file=$(mktemp "${GENOME_DIR}/temp_serotype_list.XXXXXX")
+echo "$serotype" > "$tmp_sero_file"
+download_salmonella_serotype "$tmp_sero_file"
+rm -f "$tmp_sero_file"
+# Serotype detection (shorthand: "Salmonella Typhimurium", capitalized second word)
+elif [[ "$taxon" =~ ^Salmonella\ ([A-Z][a-zA-Z0-9_]+)$ ]]; then
+serotype="${BASH_REMATCH[1]}"
+echo "Detected Salmonella serotype (shorthand): $serotype"
 tmp_sero_file=$(mktemp "${GENOME_DIR}/temp_serotype_list.XXXXXX")
 echo "$serotype" > "$tmp_sero_file"
 download_salmonella_serotype "$tmp_sero_file"
