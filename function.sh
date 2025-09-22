@@ -326,7 +326,7 @@ if [[ "$organism_name" == Salmonella\ enterica* ]]; then
 base_path="$genome_dir/Salmonella_enterica"
 matched_subsp=false
 for subsp in "${subspecies_list[@]}"; do
-if echo "$organism_name" | grep -Pq "subsp\.?\s*${subsp}\b"; then
+if [[ "$organism_name" =~ subsp[[:space:].]+${subsp}([^[:alpha:]]|$) ]]; then
 matched_subsp=true
 base_path="$base_path/$subsp"
 matched_sero=false
@@ -614,6 +614,10 @@ read -ra words <<< "$input"
 # If not Salmonella, return as is
 if [[ "${words[0]}" != "Salmonella" ]]; then
 echo "$input"
+return
+fi
+if [[ "$input" == "Salmonella" ]]; then
+echo "Salmonella"
 return
 fi
 # Species-level names
