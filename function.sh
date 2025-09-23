@@ -590,6 +590,7 @@ create_blastdb "$combined_fasta" "$output_dir/$db_name" &
 while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do sleep 1; done
 while read -r species_dir; do
 species_name=$(basename "$species_dir")
+[[ "$species_name" == "unclassified" ]] && continue
 species_fasta="$species_dir/${species_name}_all_genomes.fna"
 find "$species_dir" -type f -name "*_genomic.fna" | while read -r file; do
 accession=$(basename "$file" | grep -oE 'GC[AF]_[0-9]+\.[0-9]+')
