@@ -397,7 +397,7 @@ fi
 # Set delimiter as a space
 DELIMITER=" "
 if [[ -n "$TAXON_FILE" ]]; then
-sed 's/[\t,]\+/ /g' "$TAXON_FILE" > "${TAXON_FILE}_processed"
+sed 's/[\t]\+/ /g' "$TAXON_FILE" > "${TAXON_FILE}_processed"
 # Ensure if a taxon file is provided, the genus should be one of the target Enterobacteriaceae
 if [[ -z "$DOWNLOAD_FILE" ]]; then
 awk -v delim="$DELIMITER" '
@@ -485,7 +485,7 @@ TAXON_LIST=$(< "$DOWNLOAD_FILE")
 else
 # Rmove numeric suffix and convert underscores and dots to spaces
 TAXON_LIST=$(find "$BLAST_DB_DIR" -name "*.nsq" -exec basename {} .nsq \; | \
-sed -E '/[._][0-9]{2}$/s/[._][0-9]{2}$//' | sort -u |  sed 's/_/ /g' | sed -E 's/subsp /subsp. /g')
+sed -E '/[._][0-9]{2}$/s/[._][0-9]{2}$//' | sort -u |  sed 's/_/ /g' | sed -E 's/subsp /subsp. /g' | sed -E 's/ ([0-9]+)$/,\1/')
 fi
 # Process each taxon in TAXON_LIST using parallel summarization
 MAX_PARALLEL_SUMMARY=$(( $(get_cpus) * 2 / 3 ))
