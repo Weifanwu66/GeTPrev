@@ -58,7 +58,7 @@ function download_single_genus() {
 local genus="$1"
 local output_dir="$2"
 local genus_dir="${output_dir}/${genus}"
-if [[ -n "$(find "$genus_dir" -maxdepth 1 -type f -name "*_genomic.fna" 2>/dev/null)" ]]; then
+if [[ -n "$(find "$genus_dir" -type f \( -name "*_genomic.fna" -o -name "*_genomic.fna.gz" \) -print -quit 2>/dev/null)" ]]; then
 echo "Genomes already exist for $genus, skipping"
 return
 fi
@@ -543,6 +543,7 @@ while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do sleep 1; done
 if [[ "$subspecies_name" == "enterica" ]]; then
 while read -r serotype_dir; do
 serotype_name=$(basename "$serotype_dir")
+serotype_name="${serotype_name//,/_}"
 [[ "$serotype_name" == "unclassified" ]] && continue
 echo "Detected Salmonella enterica serotype: $serotype_name"
 serotype_fasta="$serotype_dir/${serotype_name}_genomes.fna"
@@ -572,6 +573,7 @@ MAX_PARALLEL_JOBS=$(($(get_cpus) * 2 / 3))
 echo "Building BLAST databases for custom panel from: $input_dir"
 while read -r taxon_dir; do
 taxon_name=$(basename "$taxon_dir")
+taxon_name="${taxon_name//,/_}"
 [[ "$taxon_name" == "unclassified" ]] && continue
 echo "Processing: $taxon_name"
 combined_fasta="$taxon_dir/${taxon_name}_all_genomes.fna"
@@ -663,7 +665,20 @@ local query="$(extract_taxon_info "$input")"
 local clean_query="${query// /_}"
 clean_query="${clean_query//./}"
 local db_name=""
-if [[ "$query" == "Salmonella enterica subsp. enterica serovar monophasic Typhimurium" ]]; then
+sero=""
+if [[ "$query" == *"serovar "* ]]; then
+sero="${query##*serovar }"
+elif [[ "$query" == Salmonella\ * ]]; then
+sero="${query#Salmonella }"
+fi
+sero="$(echo "$sero" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+if [[ -n "$sero" && "$sero" == *:* && "$sero" =~ [0-9] ]]; then
+sero="${sero//,/_}"
+db_name="Salmonella_${sero}"
+elif [[ "$query" == "Salmonella enterica subsp. enterica serovar Rough O:-:-" ]] || \
+[[ "$query" == "Salmonella Rough O:-:-" ]]; then
+db_name="Salmonella_Rough_O:-:-"
+elif [[ "$query" == "Salmonella enterica subsp. enterica serovar monophasic Typhimurium" ]]; then
 db_name="Salmonella_monophasic_Typhimurium"
 elif [[ "$clean_query" =~ ^Salmonella_enterica_subsp_enterica_serovar_([A-Z][a-zA-Z0-9_]+)$ ]]; then
 db_name="Salmonella_${BASH_REMATCH[1]}"
@@ -811,6 +826,7 @@ else
 [[ -z "$taxon" ]] && return
 local blast_db_name="${taxon// /_}"
 blast_db_name="${blast_db_name//./}"
+blast_db_name="${blast_db_name//,/_}"
 local blast_db="${BLAST_DB_DIR}/${blast_db_name}"
 local clean_taxon="$(extract_taxon_info "$taxon")"
 local blast_output_name="${clean_taxon// /_}"
