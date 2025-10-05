@@ -338,10 +338,17 @@ tmp_sero_file=$(mktemp "${GENOME_DIR}/temp_serotype_list.XXXXXX")
 echo "$serotype" > "$tmp_sero_file"
 download_salmonella_serotype "$tmp_sero_file"
 rm -f "$tmp_sero_file"
-# Serotype detection (shorthand: "Salmonella Typhimurium", capitalized second word)
+# Serotype detection
 elif [[ "$taxon" =~ ^Salmonella\ ([A-Z][a-zA-Z0-9_]+)$ ]]; then
 serotype="${BASH_REMATCH[1]}"
 echo "Detected Salmonella serotype (shorthand): $serotype"
+tmp_sero_file=$(mktemp "${GENOME_DIR}/temp_serotype_list.XXXXXX")
+echo "$serotype" > "$tmp_sero_file"
+download_salmonella_serotype "$tmp_sero_file"
+rm -f "$tmp_sero_file"
+elif [[ "$taxon" =~ ^Salmonella[[:space:]]+[Mm]onophasic[[:space:]]+Typhimurium$ ]]; then
+serotype="monophasic Typhimurium"
+echo "Detected Salmonella serotype (monophasic shorthand): $serotype"
 tmp_sero_file=$(mktemp "${GENOME_DIR}/temp_serotype_list.XXXXXX")
 echo "$serotype" > "$tmp_sero_file"
 download_salmonella_serotype "$tmp_sero_file"
