@@ -241,6 +241,44 @@ conda install -c bioconda <package_name>
 3. entrez-direct: https://www.ncbi.nlm.nih.gov/books/NBK179288/
 
 -----
+## Download the pre-built default database from Zenodo
+The pre-built BLAST database archive is named blastdb_all.tar.gz. Download it from Zenodo, extract it, and place the contents directly under database/complete_blast_db/.
+
+### Linux/macOS
+```bash
+# --- set once ---
+ZENODO_URL="https://zenodo.org/records/<RECORD_ID>/files/blastdb_all.tar.gz?download=1"
+
+# create target folder
+mkdir -p database/complete_blast_db
+
+# download
+curl -L -o blastdb_all.tar.gz "$ZENODO_URL"
+
+# extract directly into the expected folder
+tar -xzf blastdb_all.tar.gz -C database/complete_blast_db
+
+# clean up
+rm -f blastdb_all.tar.gz
+```
+
+### Windows
+```powerShell
+# --- set once ---
+$ZENODO_URL = "https://zenodo.org/records/<RECORD_ID>/files/blastdb_all.tar.gz?download=1"
+
+# create target folder
+New-Item -ItemType Directory -Force -Path "database/complete_blast_db" | Out-Null
+
+# download
+Invoke-WebRequest -Uri $ZENODO_URL -OutFile "blastdb_all.tar.gz"
+
+# extract (Windows 10+ has tar)
+tar -xzf .\blastdb_all.tar.gz -C .\database\complete_blast_db
+
+# clean up
+Remove-Item .\blastdb_all.tar.gz
+```
 
 ## Build default database locally
 To download and build the default Enterobacteriaceae database on HPC systems with job schedulers (including 7 genus: *Salmonella, Escherichia, Enterobacter, Klebsiella, Cronobacter, Citrobacter,* and *Shigella*), run:
