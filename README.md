@@ -247,7 +247,7 @@ The pre-built BLAST database archive is named blastdb_all.tar.gz. Download it fr
 ### Linux/macOS
 ```bash
 # --- set once ---
-ZENODO_URL="https://zenodo.org/records/<RECORD_ID>/files/blastdb_all.tar.gz?download=1"
+ZENODO_URL="https://zenodo.org/records/17346156/files/blastdb_all.tar.gz?download=1"
 
 # create target folder
 mkdir -p database/complete_blast_db
@@ -265,7 +265,7 @@ rm -f blastdb_all.tar.gz
 ### Windows
 ```powerShell
 # --- set once ---
-$ZENODO_URL = "https://zenodo.org/records/<RECORD_ID>/files/blastdb_all.tar.gz?download=1"
+$ZENODO_URL = "https://zenodo.org/records/17346156/files/blastdb_all.tar.gz?download=1"
 
 # create target folder
 New-Item -ItemType Directory -Force -Path "database/complete_blast_db" | Out-Null
