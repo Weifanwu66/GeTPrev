@@ -293,8 +293,8 @@ You may override the defaults by setting environment variables when running the 
 ```bash
 ACCOUNT=my_account QUEUE=your_queue RAM=256GB CPUS=24 RUNTIME=08:00:00 bash build_EB_complete_genomes_db.sh
 ```
-
-If you are running this script on a system without a job scheduler, and your machine has enough available memory (>=128 GB), you can simpy run:
+* No SLURM Environment*
+If you are running this script on a system without a job scheduler (SLURM), and your machine has enough available storage (>=128 GB), you can simply run:
 
 ```bash
 bash build_EB_complete_genomes_db.sh
