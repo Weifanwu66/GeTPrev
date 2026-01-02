@@ -281,26 +281,35 @@ Remove-Item .\blastdb_all.tar.gz
 ```
 
 ## Build default database locally
-To download and build the default Enterobacteriaceae database on HPC systems with job schedulers (including 7 genus: *Salmonella, Escherichia, Enterobacter, Klebsiella, Cronobacter, Citrobacter,* and *Shigella*), run:
+
+The database-building script can be executed **either locally (no job scheduler required)** or on an **HPC system with a job scheduler (e.g., SLURM)**.  
+Scheduler-related parameters are **optional** and are **only used on systems with a job scheduler**.
+
+---
+
+### Option 1: Local execution (NO job scheduler required)
+
+If you are running this script on a system **without a job scheduler** (e.g., a workstation or server) and your machine has sufficient available storage (≥128 GB), **no scheduler-related options are required**:
+
+```bash
+bash build_EB_complete_genomes_db.sh
+```
+
+### Option 2: Local execution (job scheduler required)
+
+To download and build the default Enterobacteriaceae database on HPC systems with job schedulers, run:
 
 ```bash
 ACCOUNT=my_account QUEUE=your_queue bash build_EB_complete_genomes_db.sh
 ```
-> Note: Many HPC systems require users to specify a job ACCOUNT and/or QUEUE for successful job submission. If your system does not require them, you may omit these variable.
 
 You may override the defaults by setting environment variables when running the script. The default resources are: RAM=128 GB, CPUS=16, RUNTIME=12:00:00.
 
 ```bash
 ACCOUNT=my_account QUEUE=your_queue RAM=256GB CPUS=24 RUNTIME=08:00:00 bash build_EB_complete_genomes_db.sh
 ```
-* No SLURM Environment*
-If you are running this script on a system without a job scheduler (SLURM), and your machine has enough available storage (>=128 GB), you can simply run:
 
-```bash
-bash build_EB_complete_genomes_db.sh
-```
-
-## Example commands:
+## Example commands for analysis:
 
 > ⚠️ **Note:** if running on HPC, please replace ceres with a valid partition in your environment. Please download the pre-built database from Ag Data Commons or download the database locally when working with the default database.
 
