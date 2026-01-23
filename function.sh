@@ -53,6 +53,119 @@ done
 return 1
 }
 
+# sanitize taxon name for filenames
+function sanitize_taxon_label() {
+local input="$1"
+echo "$input" | tr -cs '[:alnum:]_.:-' '_' | sed 's/^_//;s/_$//'
+}
+
+function get_expected_accessions() {
+local query="$1"
+local assembly_level="$2"
+local expected_accessions=""
+if [[ "$query" == "Salmonella enterica subsp. enterica serovar monophasic Typhimurium" ]]; then
+while read -r mono; do
+[[ -z "$mono" ]] && continue
+expected_accessions+=$(ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $mono" \
+ --assembly-level "$assembly_level" --section genbank --dry-run | tail -n +2 | \
+ grep -vi 'serovar 43:a:1,7' | awk -F '/' '{print $NF}' | awk '{print $1}')$'\n'
+done < "$MONOPHASIC_TYPHIMURIUM_LIST"
+elif [[ "$query" == "Salmonella enterica subsp. enterica serovar Typhimurium" ]] || \
+   [[ "$query" == "Salmonella enterica subsp. enterica serovar Typhi" ]]; then
+all_accessions=$(ncbi-genome-download bacteria --genera "$query" --assembly-level "$assembly_level" \
+ --section genbank --dry-run | tail -n +2 | awk -F '/' '{print $NF}' | awk '{print $1}')
+strict_accessions=$(get_strict_accessions "$query")
+expected_accessions=$(comm -12 <(echo "$all_accessions" | sort) <(echo "$strict_accessions" | sort))
+else
+expected_accessions=$(ncbi-genome-download bacteria --genera "$query" --assembly-level "$assembly_level" \
+ --section genbank --dry-run | tail -n +2 | awk -F '/' '{print $NF}' | awk '{print $1}')
+fi
+echo "$expected_accessions" | grep -E '^GCA_[0-9]+\.[0-9]+$' | sort -u
+}
+
+function log_missing_fasta_files() {
+local taxon_label="$1"
+local query="$2"
+local output_dir="$3"
+local assembly_level="${4:-$ASSEMBLY_LEVEL}"
+local log_dir="$WORKDIR/database/missing_logs"
+mkdir -p "$log_dir"
+local safe_label
+safe_label=$(sanitize_taxon_label "$taxon_label")
+local log_file="$log_dir/${safe_label}_missing_fasta.log"
+local expected_accessions
+expected_accessions=$(get_expected_accessions "$query" "$assembly_level")
+if [[ -z "$expected_accessions" ]]; then
+return
+fi
+local actual_accessions
+actual_accessions=$(find "$output_dir" -maxdepth 1 -type f \( -name "*_genomic.fna" -o -name "*_genomic.fna.gz" \) -printf '%f\n' | \
+sed -E 's/^(GCA_[0-9]+\.[0-9]+).*/\1/' | sort -u)
+local missing_accessions
+missing_accessions=$(comm -23 <(echo "$expected_accessions") <(echo "$actual_accessions"))
+local expected_count
+expected_count=$(echo "$expected_accessions" | wc -l)
+local missing_count
+missing_count=$(echo "$missing_accessions" | sed '/^$/d' | wc -l)
+if [[ "$missing_count" -gt 0 ]]; then
+local missing_pct
+missing_pct=$(awk -v m="$missing_count" -v t="$expected_count" 'BEGIN { if (t == 0) { print "0.00"; } else { printf "%.2f", (m / t) * 100 } }')
+{
+echo "Taxon: $query"
+echo "Expected FASTA files: $expected_count"
+echo "Downloaded FASTA files: $(echo "$actual_accessions" | sed '/^$/d' | wc -l)"
+echo "Missing FASTA files: $missing_count (${missing_pct}%)"
+echo "Missing accessions:"
+echo "$missing_accessions"
+echo ""
+echo "Note: Some genomes may be intentionally filtered after download."
+} > "$log_file"
+echo "WARNING: NCBI download incomplete for '$query'. Database may be incomplete (missing ${missing_count}/${expected_count} FASTA files, ${missing_pct}%). See ${log_file}." >&2
+else
+rm -f "$log_file"
+fi
+}
+
+function log_missing_selected_fasta_files() {
+local taxon_label="$1"
+local selected_accessions_file="$2"
+local output_dir="$3"
+local log_dir="$WORKDIR/database/missing_logs"
+mkdir -p "$log_dir"
+local safe_label
+safe_label=$(sanitize_taxon_label "$taxon_label")
+local log_file="$log_dir/${safe_label}_missing_fasta.log"
+if [[ ! -s "$selected_accessions_file" ]]; then
+return
+fi
+local expected_accessions
+expected_accessions=$(sort -u "$selected_accessions_file")
+local actual_accessions
+actual_accessions=$(find "$output_dir" -maxdepth 1 -type f \( -name "*_genomic.fna" -o -name "*_genomic.fna.gz" \) -printf '%f\n' | \
+sed -E 's/^(GCA_[0-9]+\.[0-9]+).*/\1/' | sort -u)
+local missing_accessions
+missing_accessions=$(comm -23 <(echo "$expected_accessions") <(echo "$actual_accessions"))
+local expected_count
+expected_count=$(echo "$expected_accessions" | wc -l)
+local missing_count
+missing_count=$(echo "$missing_accessions" | sed '/^$/d' | wc -l)
+if [[ "$missing_count" -gt 0 ]]; then
+local missing_pct
+missing_pct=$(awk -v m="$missing_count" -v t="$expected_count" 'BEGIN { if (t == 0) { print "0.00"; } else { printf "%.2f", (m / t) * 100 } }')
+{
+echo "Taxon: $taxon_label"
+echo "Expected FASTA files: $expected_count"
+echo "Downloaded FASTA files: $(echo "$actual_accessions" | sed '/^$/d' | wc -l)"
+echo "Missing FASTA files: $missing_count (${missing_pct}%)"
+echo "Missing accessions:"
+echo "$missing_accessions"
+} > "$log_file"
+echo "WARNING: NCBI download incomplete for '$taxon_label'. Database may be incomplete (missing ${missing_count}/${expected_count} FASTA files, ${missing_pct}%). See ${log_file}." >&2
+else
+rm -f "$log_file"
+fi
+}
+
 # download genus-level genomes
 function download_single_genus() {
 local genus="$1"
@@ -69,6 +182,7 @@ download_with_retry ncbi-genome-download bacteria --genera "$genus" --assembly-l
 if compgen -G "$genus_dir"/*_genomic.fna.gz > /dev/null; then
 find "$genus_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
 fi
+log_missing_fasta_files "$genus" "$genus" "$genus_dir" "$ASSEMBLY_LEVEL"
 echo "Downloaded and organized genomes for $genus"
 }
 
@@ -147,6 +261,7 @@ download_with_retry ncbi-genome-download bacteria --genera "$species" --assembly
 if compgen -G "$species_dir"/*_genomic.fna.gz > /dev/null; then
 find "$species_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
 fi
+log_missing_fasta_files "$species" "$species" "$species_dir" "$ASSEMBLY_LEVEL"
 if [[ -z "$(find "$species_dir" -maxdepth 1 -type f -name "*_genomic.fna" 2>/dev/null)" ]]; then
 echo "No genomes found for $species. Remove empty directory."
 rm -rf "$species_dir"
@@ -194,6 +309,7 @@ download_with_retry ncbi-genome-download bacteria --genera "Salmonella enterica 
 if compgen -G "$subspecies_dir"/*_genomic.fna.gz > /dev/null; then
 find "$subspecies_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
 fi
+log_missing_fasta_files "Salmonella_enterica_subsp_${safe_subsp}" "Salmonella enterica subsp. $subspecies" "$subspecies_dir" "$ASSEMBLY_LEVEL"
 if [[ -z "$(find "$subspecies_dir" -maxdepth 1 -type f -name "*_genomic.fna" 2>/dev/null)" ]]; then
 echo "No genomes found for $subspecies. Removing empty directory."
 rm -rf "$subspecies_dir"
@@ -244,6 +360,7 @@ if compgen -G "$serotype_dir"/*_genomic.fna.gz > /dev/null; then
 find "$serotype_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
 fi
 find "$serotype_dir" -type f -name "*.fna" -exec grep -Eil "serovar 43:a:1,7" {} \; -exec rm -f {} \;
+log_missing_fasta_files "Salmonella_monophasic_Typhimurium" "Salmonella enterica subsp. enterica serovar monophasic Typhimurium" "$serotype_dir" "$ASSEMBLY_LEVEL"
 return
 fi
 echo "Downloading genomes for: Salmonella enterica subsp. enterica serovar $serotype"
@@ -268,6 +385,7 @@ rm -f "$fna"
 fi
 done
 fi
+log_missing_fasta_files "Salmonella_${clean_serotype}" "Salmonella enterica subsp. enterica serovar $serotype" "$serotype_dir" "$ASSEMBLY_LEVEL"
 if [[ -z "$(find "$serotype_dir" -type f -name "*.fna" 2>/dev/null)" ]]; then
 echo "No usable genomes for $serotype. Removing directory."
 rm -rf "$serotype_dir"
@@ -787,6 +905,7 @@ download_with_retry ncbi-genome-download bacteria --assembly-accessions "${itera
 if compgen -G "$iteration_dir"/*_genomic.fna.gz > /dev/null; then
 find "$iteration_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
 fi
+log_missing_selected_fasta_files "${query}_draft_iter_${iteration}" "${iteration_dir}/selected_accessions.txt" "$iteration_dir"
 }
 
 function perform_blast(){
