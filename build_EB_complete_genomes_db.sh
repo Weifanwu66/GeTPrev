@@ -138,7 +138,7 @@ rm -f sge2.sh
 exit 0
 else
 echo "No job scheduler detected, checking resources for local run..."
-REQUIRED_RAM_GB=64
+REQUIRED_RAM_GB=16
 AVAILABLE_RAM_GB=$(free -g | awk '/^Mem:/ {print $7}')
 echo "Available RAM: ${AVAILABLE_RAM_GB}GB"
 if (( AVAILABLE_RAM_GB < REQUIRED_RAM_GB )); then
