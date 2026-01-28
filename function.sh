@@ -96,10 +96,11 @@ local log_file="$log_dir/${safe_label}_missing_fasta.log"
 local expected_accessions
 expected_accessions=$(get_expected_accessions "$query" "$assembly_level")
 if [[ -z "$expected_accessions" ]]; then
+echo "WARNING: Missing-file check skipped for '$query' because the expected accession list could not be generated (ncbi-genome-download --dry-run returned empty or failed). This may be due to network/rate-limit issues. Re-run later to validate completeness." > "$log_file"
 return
 fi
 local actual_accessions
-actual_accessions=$(find "$output_dir" -maxdepth 1 -type f \( -name "*_genomic.fna" -o -name "*_genomic.fna.gz" \) -printf '%f\n' | \
+actual_accessions=$(find "$output_dir" -type f \( -name "*_genomic.fna" -o -name "*_genomic.fna.gz" \) -printf '%f\n' | \
 sed -E 's/^(GCA_[0-9]+\.[0-9]+).*/\1/' | sort -u)
 local missing_accessions
 missing_accessions=$(comm -23 <(echo "$expected_accessions") <(echo "$actual_accessions"))
