@@ -138,13 +138,22 @@ rm -f sge2.sh
 exit 0
 else
 echo "No job scheduler detected, checking resources for local run..."
-REQUIRED_RAM_GB=16
+REQUIRED_RAM_GB=24
+REQUIRED_DISK_GB=128
 AVAILABLE_RAM_GB=$(free -g | awk '/^Mem:/ {print $7}')
 echo "Available RAM: ${AVAILABLE_RAM_GB}GB"
 if (( AVAILABLE_RAM_GB < REQUIRED_RAM_GB )); then
 echo "Requires at least ${REQUIRED_RAM_GB}GB RAM. Only ${AVAILABLE_RAM_GB}GB available"
 exit 1
 fi
-echo "Resources are sufficient. Re-invoking script locally with LOCAL_RUN=true"
+
+AVAILABLE_DISK_GB=$(df -BG . | awk 'NR==2 {gsub(/G/, "", $4); print $4}')
+echo "Available disk space: ${AVAILABLE_DISK_GB}GB"
+if (( AVAILABLE_DISK_GB < REQUIRED_DISK_GB )); then
+echo "Requires at least ${REQUIRED_DISK_GB}GB free disk space. Only ${AVAILABLE_DISK_GB}GB available."
+exit 1
+fi
+
+echo "Resources are sufficient. Running script locally with LOCAL_RUN=true"
 exec env LOCAL_RUN=true bash "$0"
 fi
