@@ -679,7 +679,10 @@ fi
 done < <(find "$input_dir" -mindepth 1 -maxdepth 1 -type d)
 wait
 find "$input_dir" -type f -name "*_genomes.fna" -exec rm -f {} +
-find "$input_dir" -type f -name "*_genomic.fna" | while read -r f; do gzip -f "$f" & done
+while IFS= read -r f; do
+gzip -f "$f" &
+while (( $(jobs -r | wc -l) >= MAX_PARALLEL_JOBS )); do sleep 1; done
+done < <(find "$input_dir" -type f -name "*_genomic.fna")
 wait
 echo "Finished building BLAST databases for default EB genomes"
 }
