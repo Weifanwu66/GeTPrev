@@ -133,14 +133,14 @@ Built‑in SLURM support enables:
 
 > **Important:** It is recommended to run database‑building steps (`build_EB_complete_genomes_database.sh`, custom complete genome panels via `‑d`) on HPC nodes with ≥ 250 GB free storage.
 
-#### Example SLURM submission (automatic through EGP)
+#### Example SLURM submission (automatic through GeTPrev)
 
 ```bash
 # Run default light mode using custom database on SCINet (partition ceres, 8 CPUs, 16 GB RAM, 4 hours max)
 bash getprev.sh -g genes.fasta -d download_taxon.txt -q ceres -C 8 -m 16G -r 04:00:00
 ```
 
-### SLURM Parameters Exposed in EGP
+### SLURM Parameters Exposed in GeTPrev
 
 | Flag | Meaning |
 |:-----|:--------|
@@ -244,9 +244,31 @@ conda install -c bioconda <package_name>
 ## Download the pre-built default database from Zenodo
 The pre-built BLAST database archive is named blastdb_all.tar.gz. Download it from Zenodo, extract it, and place the contents directly under database/complete_blast_db/.
 
-### Linux/macOS
+### HPC (computer node)
+On many HPC systems, large external downloads are throttled on login nodes. For best speed, start an interactive session and download from a compute node, ideally using aria2c for parallel connections and resume support.
 ```bash
-# --- set once ---
+# Link to the database
+ZENODO_URL="https://zenodo.org/records/17346156/files/blastdb_all.tar.gz?download=1"
+
+# Create target folder
+mkdir -p database/complete_blast_db
+
+# Download
+aria2c -x 8 -s 8 -k 10M -o blastdb_all.tar.gz "$ZENODO_URL"
+
+# Extract into the expected folder
+tar -xzf blastdb_all.tar.gz -C database/complete_blast_db
+
+# Clean up
+rm -f blastdb_all.tar.gz
+```
+If aria2c is not available, try:
+```bash
+curl -L -C - -o blastdb_all.tar.gz "$ZENODO_URL"
+```
+
+### Local machine (Linux/macOS)
+```bash
 ZENODO_URL="https://zenodo.org/records/17346156/files/blastdb_all.tar.gz?download=1"
 
 # create target folder
@@ -262,9 +284,9 @@ tar -xzf blastdb_all.tar.gz -C database/complete_blast_db
 rm -f blastdb_all.tar.gz
 ```
 
-### Windows
+### Local machine (Windows)
+Running the pipeline directly on Windows is not recommended, as many bioinformatics tools and dependencies are designed for Unix-like environments and may not be fully compatible or supported on Windows.
 ```powerShell
-# --- set once ---
 $ZENODO_URL = "https://zenodo.org/records/17346156/files/blastdb_all.tar.gz?download=1"
 
 # create target folder
@@ -280,7 +302,7 @@ tar -xzf .\blastdb_all.tar.gz -C .\database\complete_blast_db
 Remove-Item .\blastdb_all.tar.gz
 ```
 
-## Build default database locally
+## Build default database locally using script `build_EB_complete_genomes_db.sh`
 
 The database-building script can be executed **either locally (no job scheduler required)** or on an **HPC system with a job scheduler (e.g., SLURM)**.  
 Scheduler-related parameters are **optional** and are **only used on systems with a job scheduler**.
