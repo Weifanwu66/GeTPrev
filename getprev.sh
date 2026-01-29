@@ -255,7 +255,7 @@ exit 1
 fi
 
 # Format the fasta file if the gene file ends with cds_from_genomic.fna
-if [[ "$GENE_FILE" == "*cds_from_genomic.fna" ]]; then
+if [[ "$GENE_FILE" == *cds_from_genomic.fna ]]; then
 echo "Detected NCBI CDS fasta file. Reformatting headers.."
 formatted_fasta="${WORKDIR}/formatted_gene.fasta"
 normalize_fasta_headers "$GENE_FILE" "$formatted_fasta"
@@ -275,6 +275,10 @@ echo "Please download or build the default BLAST database first, or include -d t
 exit 1
 fi
 fi
+
+START_TS=$(date +"%Y-%m-%d %H:%M:%S")
+START_EPOCH=$(date +%s)
+echo "GeTPrev started: $START_TS"
 
 # Output directory setup
 mkdir -p "$BLAST_RESULT_DIR" "$FILTERED_BLAST_RESULT_DIR"
@@ -562,3 +566,9 @@ wait
 cat "$TMP_SUMMARY_DIR"/*.csv >> "$OUTPUT_FILE"
 rm -rf "$TMP_SUMMARY_DIR"
 echo "Analysis complete. Results saved in $OUTPUT_FILE"
+
+END_TS=$(date +"%Y-%m-%d %H:%M:%S")
+END_EPOCH=$(date +%s)
+ELAPSED=$((END_EPOCH - START_EPOCH))
+echo "GeTPrev finished: $END_TS"
+echo "Total runtime: ${ELAPSED}s ($((ELAPSED/60)) min)"
