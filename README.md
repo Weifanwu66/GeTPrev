@@ -26,8 +26,8 @@ This tool is designed for estimating the prevalence of specific genes in bacteri
 
 ### Advanced Options
 
-* **Overwrite results (`-O true`)**  
-  By default, if an output file already exists, the pipeline will skip that analysis. Use `-O true` to **force overwrite** of the existing output files.
+* **Output file naming (`-o`)**  
+  By default, each run is written to a unique results directory based on the run timestamp and target gene coverage and identity (e.g. `20260125_110648_i95_c90`), and the summary file is named as `gene_summary.csv`. But user may optionally specify a custom output filename using -o: `-o salmonella_gene_summary.csv`.
 
 * **Force rebuild of custom database (`-F true`)**  
   If a custom genome panel (`-d`) was previously built, the pipeline will skip rebuilding it unless forced. Use `-F true` to **delete and rebuild** all custom genome and BLAST database files from scratch.
@@ -365,10 +365,10 @@ bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 0
 bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 12:00:00 -m 64G -C 16 -H heavy
 ```
 
-### 6. Force rebuilding the custom complete genomes database and overwrite previous results
+### 6. Customize your output file name
 
 ```bash
-bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 08:00:00 -m 64G -C 16 -F true -O true
+bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 08:00:00 -m 64G -C 16 -F true -o my_gene_summary.csv
 ```
 
 ### 7. Expand genus into species

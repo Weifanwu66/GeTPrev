@@ -9,7 +9,7 @@ GENE_FILE=""
 DOWNLOAD_FILE=""
 FAILED_FLAG="${WORKDIR}/build_custom_db_failed.flag"
 > "$FAILED_FLAG"
-OUTPUT_FILE="${WORKDIR}/result/gene_summary.csv"
+OUTPUT_FILE=""
 DATABASE_DIR="${WORKDIR}/database"
 BLAST_DB_DIR="${DATABASE_DIR}/complete_blast_db"
 CUSTOM_GENOMES_DIR="${DATABASE_DIR}/complete_genomes"
@@ -19,14 +19,13 @@ DRAFT_GENOMES_DIR="${DATABASE_DIR}/draft_genomes"
 DRAFT_BLAST_DB_DIR="${DATABASE_DIR}/draft_blast_db"
 DRAFT_BLAST_RESULT_DIR="${WORKDIR}/result/draft_blast_results"
 FILTERED_DRAFT_BLAST_RESULT_DIR="${WORKDIR}/result/filtered_draft_blast_results"
-OVERWRITE=false
 FORCE_REBUILD=false
 GET_ALL_SPECIES=false
 # job scheduler variables
 runtime=24:00:00; hpcmem=360GB; hpcthreads=72; hpc=F; queue=NA; account=NA
 # usage setup
 usage() {
-    echo "Usage: $0 -g GENE_FILE [-t TAXON_FILE] [-d DOWNLOAD_FILE] [-c COVERAGE] [-i IDENTITY] [-o OUTPUT_FILE] [-p HPC_CLUSTER] [-q QUEUE] [-r RUNTIME] [-m MEMORY] [-C THREADS] [-a ACCOUNT] [-H MODE] [-O OVERWRITE] [-F FORCE_REBUILD] [--get-all-species] [-h|--help]"
+    echo "Usage: $0 -g GENE_FILE [-t TAXON_FILE] [-d DOWNLOAD_FILE] [-c COVERAGE] [-i IDENTITY] [-o OUTPUT_FILE] [-p HPC_CLUSTER] [-q QUEUE] [-r RUNTIME] [-m MEMORY] [-C THREADS] [-a ACCOUNT] [-H MODE] [-F FORCE_REBUILD] [--get-all-species] [-h|--help]"
     echo ""
     echo "Required arguments:"
     echo "-g GENE_FILE      : FASTA file containing target gene sequences."
@@ -44,7 +43,6 @@ usage() {
     echo "-C THREADS        : Number of CPU cores to request for SLURM."
     echo "-a ACCOUNT        : SLURM account/project (if needed)."
     echo "-H MODE           : Analysis mode ('light' or 'heavy'). Default is light."
-    echo "-O OVERWRITE      : Set to true to overwrite previous results (default: false)."
     echo "-F FORCE_REBUILD  : Set to true to rebuild previous custom complete genomes database (default: false)."
     echo "--get-all-species : Automatically expand genus-level input to species classification if genus only during custom targets database construction (default: false)." 
     echo "-h, --help        : Show this help message and exit."
@@ -65,18 +63,50 @@ while [[ "$#" -gt 0 ]]; do
         -C) hpcthreads="$2"; shift 2 ;;
         -a) account="$2"; shift 2 ;;
         -H) MODE="$2"; shift 2 ;;
-        -O) OVERWRITE="$2"; shift 2 ;;
         -F) FORCE_REBUILD="$2"; shift 2 ;;
         --get-all-species) GET_ALL_SPECIES=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Invalid option: $1"; usage; exit 1 ;;
     esac
 done
-# convert key file paths to absolute form
+
+# Define a run-specific result directory
+if [[ "$hpc" == "T" || "$queue" == "NA" ]]; then
+RUN_ID="$(date +%Y%m%d_%H%M%S)_i${MIN_IDENTITY}_c${MIN_COVERAGE}"
+RESULT_ROOT="${WORKDIR}/result/${RUN_ID}"
+
+BLAST_RESULT_DIR="${RESULT_ROOT}/complete_blast_results"
+FILTERED_BLAST_RESULT_DIR="${RESULT_ROOT}/filtered_complete_blast_results"
+DRAFT_BLAST_RESULT_DIR="${RESULT_ROOT}/draft_blast_results"
+FILTERED_DRAFT_BLAST_RESULT_DIR="${RESULT_ROOT}/filtered_draft_blast_results"
+
+mkdir -p \
+"$BLAST_RESULT_DIR" \
+"$FILTERED_BLAST_RESULT_DIR" \
+"$DRAFT_BLAST_RESULT_DIR" \
+"$FILTERED_DRAFT_BLAST_RESULT_DIR"
+
+# If user gave -o as a filename (no path), store it under RESULT_ROOT
+if [[ -n "$OUTPUT_FILE" ]]; then
+if [[ "$OUTPUT_FILE" != /* ]]; then
+OUTPUT_FILE="${RESULT_ROOT}/$(basename "$OUTPUT_FILE")"
+fi
+else
+OUTPUT_FILE="${RESULT_ROOT}/gene_summary.csv"
+fi
+fi
+
+# convert key file paths to absolute form (only if provided)
+if [[ -n "$GENE_FILE" ]]; then
 GENE_FILE="$(readlink -f "$GENE_FILE")"
-[[ -n "$TAXON_FILE" && -f "$TAXON_FILE" ]] && TAXON_FILE="$(readlink -f "$TAXON_FILE")"
-[[ -n "$DOWNLOAD_FILE" && -f "$DOWNLOAD_FILE" ]] && DOWNLOAD_FILE="$(readlink -f "$DOWNLOAD_FILE")"
-OUTPUT_FILE="$(readlink -f "$OUTPUT_FILE" || echo "$OUTPUT_FILE")"
+fi
+if [[ -n "$TAXON_FILE" && -f "$TAXON_FILE" ]]; then
+TAXON_FILE="$(readlink -f "$TAXON_FILE")"
+fi
+if [[ -n "$DOWNLOAD_FILE" && -f "$DOWNLOAD_FILE" ]]; then
+DOWNLOAD_FILE="$(readlink -f "$DOWNLOAD_FILE")"
+fi
+
 source "${WORKDIR}/function.sh" || { echo "Error sourcing function.sh" >&2; exit 1; }
 check_dependencies
 #adapted from GEAbash_v1.0.0; seems to be working as expected
@@ -86,7 +116,7 @@ check_dependencies
 #    i) MIN_IDENTITY="${OPTARG}" ;;    o) OUTPUT_FILE="${OPTARG}" ;;    p) hpc="${OPTARG}" ;;
 #    q) queue="${OPTARG}" ;;    r) runtime="${OPTARG}" ;;    m) hpcmem="${OPTARG}" ;;
 #    C) hpcthreads="${OPTARG}" ;;    a) account="${OPTARG}" ;;    H) MODE="${OPTARG}" ;;
-#    O) OVERWRITE="${OPTARG}" ;;    F) FORCE_REBUILD="${OPTARG}"
+#    F) FORCE_REBUILD="${OPTARG}"
 #    -h|--help) usage; exit 0 ;;
 #    *) echo "Invalid option: $1"; usage
 #       exit 1 ;;    esac; done
@@ -138,18 +168,18 @@ sed -i "s/RAM/$hpcmem/g" sge2.sh #user
 sed -i "s/hpctasks/$hpcthreads/g" sge2.sh #user
 #write the getprev command to the sge template
 #to use this design syntax, all user options need single dash shortcuts
-#e.g --mode heavy and --overwrite become -H heavy and -O true respectively.
+#e.g --mode heavy become -H heavy.
 #lines 201-205 assume -m <RAM> -q <queue> -r <runtime> in 
 #user supplied arguments to getprev or getprev defaults
 #lines 214,221 assume -g -c -i -o -H -O -t in 
 #user supplied arguments to getprev or getprev defaults
 if [[ "$GET_ALL_SPECIES" == true ]]; then
 sed -i \
-'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" --get-all-species -p T%g' \
+'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" --get-all-species -p T%g' \
 sge2.sh
 else
 sed -i \
-'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" -p T%g' \
+'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" -p T%g' \
 sge2.sh
 fi
 #write the needed variables to the sge template
@@ -157,7 +187,7 @@ fi
 #so that this entire while loop will be skipped
 #by the EGP resubmission
 sed -i \
-"s%vars%OVERWRITE='$OVERWRITE'; GENE_FILE='$GENE_FILE'; MIN_COVERAGE='$MIN_COVERAGE'; MIN_IDENTITY='$MIN_IDENTITY'; OUTPUT_FILE='$OUTPUT_FILE'; MODE='$MODE'; TAXON_FILE='$TAXON_FILE'; DOWNLOAD_FILE='$DOWNLOAD_FILE'; FORCE_REBUILD='$FORCE_REBUILD'; GET_ALL_SPECIES='$GET_ALL_SPECIES'%g" \
+"s%vars%GENE_FILE='$GENE_FILE'; MIN_COVERAGE='$MIN_COVERAGE'; MIN_IDENTITY='$MIN_IDENTITY'; OUTPUT_FILE='$OUTPUT_FILE'; MODE='$MODE'; TAXON_FILE='$TAXON_FILE'; DOWNLOAD_FILE='$DOWNLOAD_FILE'; FORCE_REBUILD='$FORCE_REBUILD'; GET_ALL_SPECIES='$GET_ALL_SPECIES'%g" \
 sge2.sh
 
 #make sure the user provided account is written to the template
@@ -187,11 +217,11 @@ sed -i 's/other/$other/g' slurm2.sh #local.
 #write the GEA command to the slurm template
 if [[ "$GET_ALL_SPECIES" == true ]]; then
 sed -i \
-'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" --get-all-species -p T%g' \
+'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" --get-all-species -p T%g' \
 slurm2.sh
 else
 sed -i \
-'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -O "$OVERWRITE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" -p T%g' \
+'s%command%bash getprev.sh -g "$GENE_FILE" -c "$MIN_COVERAGE" -i "$MIN_IDENTITY" -o "$OUTPUT_FILE" -H "$MODE" -t "$TAXON_FILE" -d "$DOWNLOAD_FILE" -F "$FORCE_REBUILD" -p T%g' \
 slurm2.sh
 fi
 #write the needed variables to the slurm template
@@ -199,7 +229,7 @@ fi
 #so that this entire while loop will be skipped
 #by the EGP resubmission
 sed -i \
-"s%vars%OVERWRITE='$OVERWRITE'; GENE_FILE='$GENE_FILE'; MIN_COVERAGE='$MIN_COVERAGE'; MIN_IDENTITY='$MIN_IDENTITY'; OUTPUT_FILE='$OUTPUT_FILE'; MODE='$MODE'; TAXON_FILE='$TAXON_FILE'; DOWNLOAD_FILE='$DOWNLOAD_FILE'; FORCE_REBUILD='$FORCE_REBUILD'; GET_ALL_SPECIES='$GET_ALL_SPECIES'%g" \
+"s%vars%GENE_FILE='$GENE_FILE'; MIN_COVERAGE='$MIN_COVERAGE'; MIN_IDENTITY='$MIN_IDENTITY'; OUTPUT_FILE='$OUTPUT_FILE'; MODE='$MODE'; TAXON_FILE='$TAXON_FILE'; DOWNLOAD_FILE='$DOWNLOAD_FILE'; FORCE_REBUILD='$FORCE_REBUILD'; GET_ALL_SPECIES='$GET_ALL_SPECIES'%g" \
 slurm2.sh
 
 #make sure the user provided account is written to the template
@@ -244,9 +274,6 @@ else
 BLAST_THREADS="$(get_cpus)"
 fi
 
-if [[ "$OVERWRITE" == true ]]; then
-rm -rf "$BLAST_RESULT_DIR" "$FILTERED_BLAST_RESULT_DIR" "$DRAFT_BLAST_RESULT_DIR" "$DRAFT_BLAST_DB_DIR" "$FILTERED_BLAST_RESULT_DIR" "$DRAFT_GENOMES_DIR" "$FILTERED_DRAFT_BLAST_RESULT_DIR" "$OUTPUT_FILE"
-fi
 # Ensure gene file is provided
 if [[ -z "$GENE_FILE" ]]; then
 echo "Error! Please provide a gene sequence file!"
