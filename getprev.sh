@@ -80,11 +80,10 @@ FILTERED_BLAST_RESULT_DIR="${RESULT_ROOT}/filtered_complete_blast_results"
 DRAFT_BLAST_RESULT_DIR="${RESULT_ROOT}/draft_blast_results"
 FILTERED_DRAFT_BLAST_RESULT_DIR="${RESULT_ROOT}/filtered_draft_blast_results"
 
-mkdir -p \
-"$BLAST_RESULT_DIR" \
-"$FILTERED_BLAST_RESULT_DIR" \
-"$DRAFT_BLAST_RESULT_DIR" \
-"$FILTERED_DRAFT_BLAST_RESULT_DIR"
+mkdir -p "$BLAST_RESULT_DIR" "$FILTERED_BLAST_RESULT_DIR"
+if [[ "$MODE" == "heavy" ]]; then
+mkdir -p "$DRAFT_BLAST_RESULT_DIR" "$FILTERED_DRAFT_BLAST_RESULT_DIR"
+fi
 
 # If user gave -o as a filename (no path), store it under RESULT_ROOT
 if [[ -n "$OUTPUT_FILE" ]]; then
