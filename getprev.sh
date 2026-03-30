@@ -15,8 +15,10 @@ BLAST_DB_DIR="${DATABASE_DIR}/complete_blast_db"
 CUSTOM_GENOMES_DIR="${DATABASE_DIR}/complete_genomes"
 BLAST_RESULT_DIR="${WORKDIR}/result/complete_blast_results"
 FILTERED_BLAST_RESULT_DIR="${WORKDIR}/result/filtered_complete_blast_results"
-DRAFT_GENOMES_DIR="${DATABASE_DIR}/draft_genomes"
-DRAFT_BLAST_DB_DIR="${DATABASE_DIR}/draft_blast_db"
+DRAFT_GENOMES_ROOT="${DATABASE_DIR}/draft_genomes"
+DRAFT_GENOMES_DIR=""
+DRAFT_BLAST_DB_ROOT="${DATABASE_DIR}/draft_blast_db"
+DRAFT_BLAST_DB_DIR=""
 DRAFT_BLAST_RESULT_DIR="${WORKDIR}/result/draft_blast_results"
 FILTERED_DRAFT_BLAST_RESULT_DIR="${WORKDIR}/result/filtered_draft_blast_results"
 FORCE_REBUILD=false
@@ -77,12 +79,14 @@ RESULT_ROOT="${WORKDIR}/result/${RUN_ID}"
 
 BLAST_RESULT_DIR="${RESULT_ROOT}/complete_blast_results"
 FILTERED_BLAST_RESULT_DIR="${RESULT_ROOT}/filtered_complete_blast_results"
+DRAFT_GENOMES_DIR="${DRAFT_GENOMES_ROOT}/${RUN_ID}"
+DRAFT_BLAST_DB_DIR="${DRAFT_BLAST_DB_ROOT}/${RUN_ID}"
 DRAFT_BLAST_RESULT_DIR="${RESULT_ROOT}/draft_blast_results"
 FILTERED_DRAFT_BLAST_RESULT_DIR="${RESULT_ROOT}/filtered_draft_blast_results"
 
 mkdir -p "$BLAST_RESULT_DIR" "$FILTERED_BLAST_RESULT_DIR"
 if [[ "$MODE" == "heavy" ]]; then
-mkdir -p "$DRAFT_BLAST_RESULT_DIR" "$FILTERED_DRAFT_BLAST_RESULT_DIR"
+mkdir -p "DRAFT_GENOMES_DIR" "$DRAFT_BLAST_DB_DIR" "$DRAFT_BLAST_RESULT_DIR" "$FILTERED_DRAFT_BLAST_RESULT_DIR"
 fi
 
 # If user gave -o as a filename (no path), store it under RESULT_ROOT
@@ -509,6 +513,7 @@ wait
 # Set up the output file headers
 if [[ "$MODE" == "heavy" ]]; then
 echo -e "Organism,Gene_ID,Min_percentage_of_coverage,Min_percentage_of_identity,Total_draft_genomes,Total_complete_genomes,Draft_genomes_sample_size_per_iteration,Number_of_iterations,Complete_genomes_with_target_genes,Draft_genomes_with_target_genes_mean,Draft_genomes_with_target_genes_SE,Percentage_with_target_genes_complete_genomes,Percentage_with_target_genes_draft_genomes_mean,Percentage_with_target_genes_draft_genomes_SE" > "$OUTPUT_FILE"
+else
 echo -e "Organism,Gene_ID,Min_percentage_of_coverage,Min_percentage_of_identity,Total_draft_genomes,Total_complete_genomes,Complete_genomes_with_target_genes,Percentage_with_target_genes_complete_genomes" > "$OUTPUT_FILE"
 fi
 # Initialize TAXON_LIST
