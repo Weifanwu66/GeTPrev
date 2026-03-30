@@ -508,8 +508,7 @@ wait
 
 # Set up the output file headers
 if [[ "$MODE" == "heavy" ]]; then
-echo -e "Organism,Gene_ID,Min_percentage_of_coverage,Min_percentage_of_identity,Total_draft_genomes,Total_complete_genomes,Draft_genomes_sample_size_per_iteration,Number_of_iterations,Complete_genomes_with_target_genes,Draft_genomes_with_target_genes,Percentage_with_target_genes_complete_genomes,Percentage_with_target_genes_draft_genomes" > "$OUTPUT_FILE"
-else
+echo -e "Organism,Gene_ID,Min_percentage_of_coverage,Min_percentage_of_identity,Total_draft_genomes,Total_complete_genomes,Draft_genomes_sample_size_per_iteration,Number_of_iterations,Complete_genomes_with_target_genes,Draft_genomes_with_target_genes_mean,Draft_genomes_with_target_genes_SE,Percentage_with_target_genes_complete_genomes,Percentage_with_target_genes_draft_genomes_mean,Percentage_with_target_genes_draft_genomes_SE" > "$OUTPUT_FILE"
 echo -e "Organism,Gene_ID,Min_percentage_of_coverage,Min_percentage_of_identity,Total_draft_genomes,Total_complete_genomes,Complete_genomes_with_target_genes,Percentage_with_target_genes_complete_genomes" > "$OUTPUT_FILE"
 fi
 # Initialize TAXON_LIST
@@ -556,15 +555,39 @@ if grep -qx -- "$GENE_ID" <<< "$GENE_WITH_HITS" 2>/dev/null || true; then
 COMPLETE_GENOMES_WITH_TARGET_GENES=$(awk -v gene="$GENE_ID" '$1 == gene {split($2, a, "|"); print a[1]}' "$FILTERED_BLAST_RESULT_DIR/filtered_${local_taxon}_complete_blast_results.txt" 2>/dev/null | sort -u | wc -l)
 if [[ "$MODE" == "heavy" && "$TOTAL_DRAFT_GENOMES" -gt 0 ]]; then
 TOTAL_DRAFT_GENOMES_WITH_TARGET_GENES=0
+PER_ITER_COUNTS=""
 for ((i=1; i<="$ITERATIONS"; i++)); do
 DRAFT_GENOMES_WITH_TARGET_GENES=$(awk -v gene="$GENE_ID" '$1 == gene {print $2}' "$FILTERED_DRAFT_BLAST_RESULT_DIR/${local_taxon}/filtered_iteration_${i}_draft_blast_results.txt" 2>/dev/null | cut -c1-8 | sort -u | wc -l)
 TOTAL_DRAFT_GENOMES_WITH_TARGET_GENES=$((TOTAL_DRAFT_GENOMES_WITH_TARGET_GENES + DRAFT_GENOMES_WITH_TARGET_GENES))
+PER_ITER_COUNTS+="${DRAFT_GENOMES_WITH_TARGET_GENES}"$'\n'
 done
-AVERAGE_DRAFT_GENOMES_WITH_TARGET_GENES=$(echo "$TOTAL_DRAFT_GENOMES_WITH_TARGET_GENES/$ITERATIONS" | bc 2>/dev/null)
-PERCENT_WITH_TARGET_GENES_DRAFT_GENOMES=$(echo "scale=2; ($AVERAGE_DRAFT_GENOMES_WITH_TARGET_GENES * 100)/$DRAFT_SAMPLE_SIZE" | bc 2>/dev/null)
+AVERAGE_DRAFT_GENOMES_WITH_TARGET_GENES=$(awk -v total="$TOTAL_DRAFT_GENOMES_WITH_TARGET_GENES" -v n="$ITERATIONS" 'BEGIN { if (n>0) printf "%.4f", total/n; else printf "0" }')
+DRAFT_GENOMES_WITH_TARGET_GENES_SE=$(echo "$PER_ITER_COUNTS" | awk -v n="$ITERATIONS" '
+BEGIN {sum=0; sumsq=0; count=0}
+NF {
+v=$1+0
+sum+=v
+sumsq+=v*v
+count++
+}
+END {
+if (count <= 1 || n <= 1) {
+printf "0.0000"
+} else {
+mean = sum / count
+var = (sumsq - count*mean*mean) / (count - 1)
+if (var < 0) var = 0
+se = sqrt(var) / sqrt(count)
+printf "%.4f", se
+}
+}')
+PERCENT_WITH_TARGET_GENES_DRAFT_GENOMES=$(awk -v mean="$AVERAGE_DRAFT_GENOMES_WITH_TARGET_GENES" -v size="$DRAFT_SAMPLE_SIZE" 'BEGIN { if (size>0) printf "%.2f", (mean*100)/size; else printf "0.00" }')
+PERCENT_WITH_TARGET_GENES_DRAFT_GENOMES_SE=$(awk -v se="$DRAFT_GENOMES_WITH_TARGET_GENES_SE" -v size="$DRAFT_SAMPLE_SIZE" 'BEGIN { if (size>0) printf "%.2f", (se*100)/size; else printf "0.00" }')
 else
 DRAFT_GENOMES_WITH_TARGET_GENES=0
 PERCENT_WITH_TARGET_GENES_DRAFT_GENOMES=0
+DRAFT_GENOMES_WITH_TARGET_GENES_SE=0
+PERCENT_WITH_TARGET_GENES_DRAFT_GENOMES_SE=0
 fi
 if [[ "$TOTAL_COMPLETE_GENOMES" -gt 0 ]]; then
 PERCENT_WITH_TARGET_GENES_COMPLETE_GENOMES=$(echo "scale=2; ($COMPLETE_GENOMES_WITH_TARGET_GENES * 100)/$TOTAL_COMPLETE_GENOMES" | bc 2>/dev/null)
@@ -572,14 +595,14 @@ else
 PERCENT_WITH_TARGET_GENES_COMPLETE_GENOMES=0
 fi
 if [[ "$MODE" == "heavy" ]]; then
-echo -e "\"$taxon\",$GENE_ID,$MIN_COVERAGE,$MIN_IDENTITY,$TOTAL_DRAFT_GENOMES,$TOTAL_COMPLETE_GENOMES,$DRAFT_SAMPLE_SIZE,$ITERATIONS,$COMPLETE_GENOMES_WITH_TARGET_GENES,$AVERAGE_DRAFT_GENOMES_WITH_TARGET_GENES,${PERCENT_WITH_TARGET_GENES_COMPLETE_GENOMES}%,${PERCENT_WITH_TARGET_GENES_DRAFT_GENOMES}%" >> "$TMP_OUT"
+echo -e "\"$taxon\",$GENE_ID,$MIN_COVERAGE,$MIN_IDENTITY,$TOTAL_DRAFT_GENOMES,$TOTAL_COMPLETE_GENOMES,$DRAFT_SAMPLE_SIZE,$ITERATIONS,$COMPLETE_GENOMES_WITH_TARGET_GENES,$AVERAGE_DRAFT_GENOMES_WITH_TARGET_GENES,$DRAFT_GENOMES_WITH_TARGET_GENES_SE,${PERCENT_WITH_TARGET_GENES_COMPLETE_GENOMES}%,${PERCENT_WITH_TARGET_GENES_DRAFT_GENOMES}%,${PERCENT_WITH_TARGET_GENES_DRAFT_GENOMES_SE}%" >> "$TMP_OUT"
 else
 echo -e "\"$taxon\",$GENE_ID,$MIN_COVERAGE,$MIN_IDENTITY,$TOTAL_DRAFT_GENOMES,$TOTAL_COMPLETE_GENOMES,$COMPLETE_GENOMES_WITH_TARGET_GENES,${PERCENT_WITH_TARGET_GENES_COMPLETE_GENOMES}%"  >> "$TMP_OUT"
 fi
 else
 # If no hits were found for the gene in a serotype, output is recorded as 0%
 if [[ "$MODE" == "heavy" ]]; then
-echo -e "\"$taxon\",$GENE_ID,$MIN_COVERAGE,$MIN_IDENTITY,$TOTAL_DRAFT_GENOMES,$TOTAL_COMPLETE_GENOMES,$DRAFT_SAMPLE_SIZE,$ITERATIONS,0,0,0%,0%" >> "$TMP_OUT"
+echo -e "\"$taxon\",$GENE_ID,$MIN_COVERAGE,$MIN_IDENTITY,$TOTAL_DRAFT_GENOMES,$TOTAL_COMPLETE_GENOMES,$DRAFT_SAMPLE_SIZE,$ITERATIONS,0,0,0,0%,0%,0%" >> "$TMP_OUT"
 else
 echo -e "\"$taxon\",$GENE_ID,$MIN_COVERAGE,$MIN_IDENTITY,$TOTAL_DRAFT_GENOMES,$TOTAL_COMPLETE_GENOMES,0,0%" >> "$TMP_OUT"
 fi
