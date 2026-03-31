@@ -15,14 +15,14 @@ This tool is designed for estimating the prevalence of specific genes in bacteri
 
 * **Storage‑friendly metadata:** Because of the large storage requirements, genome sequence files used to build the BLAST database are **not** stored in this repository. Instead, `database/metadata` holds the assembly‑accession lists so users can re‑download any sequence on demand.  
 
-* **Pre‑built complete‑genome database:** A BLAST database built from complete genomes of the default seven Enterobacteriaceae genus is provided for quick, high‑quality searches and hosted on USDA Ag Data Commons. The script `build_EB_complete_genomes_database.sh` is also provided for reproducing or updating the default database. 
+* **Pre‑built complete‑genome database:** A BLAST database built from complete genomes of the seven genera of significant food safety implications within the family of Enterobacteriaceae is provided for quick, high‑quality searches and hosted on Zenodo https://doi.org/10.5281/zenodo.17346156. The script `build_EB_complete_genomes_database.sh` is also provided for reproducing or updating the default database. 
 
-* **Heavy mode (`‑H heavy` + `‑t <taxon_file>`):** Adds draft genomes to the analysis. Draft assemblies for each target taxon are downloaded with *ncbi‑genome‑download*, shuffled, and sampled in iterations (Cochran’s formula with finite‑population correction; ≤ 20 iterations) to capture diversity while keeping runtime reasonable.  
+* **Heavy mode (`‑H heavy` + `‑t <taxon_file>`):** Adds draft genomes to the analysis. Accession IDs of draft assemblies for each target taxon are downloaded with *ncbi‑genome‑download*. Accession IDs were filtered by quality, randomly shuffled, and subsampled in iterations (Cochran’s formula with finite‑population correction; ≤ 20 iterations) to capture diversity while keeping runtime reasonable.  
 
-* **Custom genome panel (`‑d <download_file>`):** Enables users to work outside the default Enterobacteriaceae genus or combine targets from both within and outside this group. Provide a plain text file with one taxon per line (e.g., genus, species, or serotype), or pass a single genus/species/serotype directly. The pipeline will download the corresponding complete genomes, build a custom BLAST database in real time, and run either LIGHT or HEAVY mode against that database.
+* **Custom genome panel (`‑d <download_file>`):** Enables users to work outside the Enterobacteriaceae family or combine targets from both within and outside this group. Provide a plain text file with one taxon per line (e.g., genus, species, or serotype), or pass a single genus/species/serotype directly. The pipeline will download the corresponding complete genomes, build a custom BLAST database in real time, and run either LIGHT or HEAVY mode against that database.
 
 > **Note:** When using -d, you do not need to provide the -t flag for HEAVY mode—the custom panel already defines the target taxa.
-> **System requirements** Building either the pre‑built archive or a large custom panel requires significant memory (>= 64 GB).
+> **System requirements** Building either the pre‑built archive or a large custom panel requires significant memory.
 
 ### Advanced Options
 
@@ -136,7 +136,7 @@ Built‑in SLURM support enables:
 #### Example SLURM submission (automatic through GeTPrev)
 
 ```bash
-# Run default light mode using custom database on SCINet (partition ceres, 8 CPUs, 16 GB RAM, 4 hours max)
+# Run default light mode using custom database on USDA HPC SCINet (partition ceres, 8 CPUs, 16 GB RAM, 4 hours max)
 bash getprev.sh -g genes.fasta -d download_taxon.txt -q ceres -C 8 -m 16G -r 04:00:00
 ```
 
