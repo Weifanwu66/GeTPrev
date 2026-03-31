@@ -787,7 +787,7 @@ local query="$(extract_taxon_info "$input")"
 local clean_query="${query// /_}"
 clean_query="${clean_query//./}"
 local db_name=""
-sero=""
+local sero=""
 if [[ "$query" == *"serovar "* ]]; then
 sero="${query##*serovar }"
 elif [[ "$query" == Salmonella\ * ]]; then
@@ -823,16 +823,25 @@ if [[ "$query" == "Salmonella enterica subsp. enterica serovar Typhi" ]] || \
 all_accessions=$(ncbi-genome-download bacteria --genera "$query" \
     --assembly-level "$assembly_level" --section genbank --dry-run | tail -n +2 | awk -F '/' '{print $NF}' | awk '{print $1}')
 strict_accessions=$(get_strict_accessions "$query")
-total_genomes=$(comm -12 <(echo "$all_accessions" | sort) <(echo "$strict_accessions" | sort) | wc -l)
+filtered_accessions=$(awk -F '\t' '!/^#/ && $12=="Contig" && $31<500 {print $1}' "$METADATA_FILE" | sort -u)
+total_genomes=$(comm -12 \
+    <(comm -12 <(echo "$all_accessions" | sort -u) <(echo "$strict_accessions" | sort -u)) \
+    <(echo "$filtered_accessions" | sort -u) | wc -l)
 elif [[ "$query" == "Salmonella enterica subsp. enterica serovar monophasic Typhimurium" ]]; then
+filtered_accessions=$(awk -F '\t' '!/^#/ && $12=="Contig" && $31<500 {print $1}' "$METADATA_FILE" | sort -u)
 total_genomes=0
 while read -r name; do
-count=$(ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $name" \
-    --assembly-level "$assembly_level" --section genbank --dry-run | tail -n +2 | grep -vi 'serovar 43:a:1,7' | wc -l)
+all_accessions=$(ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $name" \
+        --assembly-level "$assembly_level" --section genbank --dry-run | \
+        tail -n +2 | grep -vi 'serovar 43:a:1,7' | awk -F '/' '{print $NF}' | awk '{print $1}')
+count=$(comm -12 <(echo "$all_accessions" | sort -u) <(echo "$filtered_accessions" | sort -u) | wc -l)
 ((total_genomes += count))
 done < "$MONOPHASIC_TYPHIMURIUM_LIST"
 else
-total_genomes=$(ncbi-genome-download bacteria --genera "$query" --assembly-level "$assembly_level" --section genbank --dry-run | tail -n +2 | wc -l)
+all_accessions=$(ncbi-genome-download bacteria --genera "$query" --assembly-level "$assembly_level" --section genbank --dry-run | \
+    tail -n +2 | awk -F '/' '{print $NF}' | awk '{print $1}')
+filtered_accessions=$(awk -F '\t' '!/^#/ && $12=="Contig" && $31<500 {print $1}' "$METADATA_FILE" | sort -u)
+total_genomes=$(comm -12 <(echo "$all_accessions" | sort -u) <(echo "$filtered_accessions") | wc -l)
 fi
 fi
 echo "$total_genomes"
@@ -885,6 +894,11 @@ taxon_dir_name="${taxon_dir_name//./}"
 local iteration_dir="${output_dir}/${taxon_dir_name}/genomes_${iteration}"
 mkdir -p "$iteration_dir"
 local accessions=""
+local all_accessions
+local strict_accessions
+local filtered_accessions
+local valid_accessions
+
 if [[ "$query" == "Salmonella enterica subsp. enterica serovar monophasic Typhimurium" ]]; then
 while read -r actual_name; do
 accessions+=$(ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $actual_name" \
@@ -902,7 +916,14 @@ accessions=$(comm -12 <(echo "$all_accessions" | sort) <(echo "$strict_accession
 else
 accessions=$(ncbi-genome-download bacteria --genera "$query" --assembly-level contig --section genbank --dry-run | tail -n +2 | awk -F '/' '{print $NF}' | awk '{print $1}')
 fi
-local valid_accessions=$(echo "$accessions" | grep -E '^GCA_[0-9]+\.[0-9]+$' | shuf -n "$sample_size")
+
+# filter by contig count < 500
+filtered_accessions=$(awk -F '\t' '
+!/^#/ && $12=="Contig" && $31<500 {print $1}
+' "$METADATA_FILE" | sort -u)
+
+# intersect + sample
+valid_accessions=$(comm -12 <(echo "$accessions" | sort -u) <(echo "$filtered_accessions") | shuf -n "$sample_size")
 echo "$valid_accessions" > "${iteration_dir}/selected_accessions.txt"
 download_with_retry ncbi-genome-download bacteria --assembly-accessions "${iteration_dir}/selected_accessions.txt" \
  --formats fasta --assembly-level contig --section genbank --output-folder "$iteration_dir" --flat-output
