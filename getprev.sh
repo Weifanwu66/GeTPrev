@@ -86,7 +86,7 @@ FILTERED_DRAFT_BLAST_RESULT_DIR="${RESULT_ROOT}/filtered_draft_blast_results"
 
 mkdir -p "$BLAST_RESULT_DIR" "$FILTERED_BLAST_RESULT_DIR"
 if [[ "$MODE" == "heavy" ]]; then
-mkdir -p "DRAFT_GENOMES_DIR" "$DRAFT_BLAST_DB_DIR" "$DRAFT_BLAST_RESULT_DIR" "$FILTERED_DRAFT_BLAST_RESULT_DIR"
+mkdir -p "$DRAFT_GENOMES_DIR" "$DRAFT_BLAST_DB_DIR" "$DRAFT_BLAST_RESULT_DIR" "$FILTERED_DRAFT_BLAST_RESULT_DIR"
 fi
 
 # If user gave -o as a filename (no path), store it under RESULT_ROOT
@@ -492,22 +492,33 @@ blast_db_name="${blast_db_name//./}"
 local total_draft_genomes=$(get_total_genomes_count "$taxon" "contig")
 read -r sample_size iterations <<< "$(calculate_sample_size_and_iterations "$total_draft_genomes")"
 echo "Processing $taxon | Total draft genomes: $total_draft_genomes. Running $iterations iterations (max 20)."
-local max_parallel_iter=10
+local max_parallel_iter=$(( $(get_cpus) / 3 ))
+(( max_parallel_iter < 1 )) && max_parallel_iter=1
+(( max_parallel_iter > 10 )) && max_parallel_iter=10
 (( iterations < max_parallel_iter )) && max_parallel_iter=$iterations
+local iter_threads=$(( BLAST_THREADS / max_parallel_iter ))
+(( iter_threads < 1 )) && iter_threads=1
+local fail_log="${RESULT_ROOT:-${WORKDIR}/result}/draft_iteration_failures_${blast_db_name}.log"
+: > "$fail_log"
+valid_accessions_file="${DRAFT_GENOMES_DIR}/${blast_db_name}/valid_accessions.txt"
+get_valid_draft_accessions_for_taxon "$taxon" "$valid_accessions_file" || { echo "failed to build valid accession pool" >> "$fail_log"; return 1; }
 local i
 for ((i=1; i<=iterations; i++)); do
 (
 local iter="$i"
 echo "Starting iterations $iter/$iterations for $taxon"
-download_random_draft_genomes "$taxon" "$sample_size" "$DRAFT_GENOMES_DIR" "$iter"
-perform_blast "$GENE_FILE" "$MIN_IDENTITY" "$DRAFT_BLAST_RESULT_DIR" "$iter" "$taxon" "$BLAST_THREADS"
+download_random_draft_genomes "$taxon" "$sample_size" "$DRAFT_GENOMES_DIR" "$iter" "$valid_accessions_file"|| { echo "iteration_${iter}: download random draft genomes failed" >> "$fail_log"; exit 1; }
+perform_blast "$GENE_FILE" "$MIN_IDENTITY" "$DRAFT_BLAST_RESULT_DIR" "$iter" "$taxon" "$iter_threads"|| { echo "iteration_${iter}: perform blast failed" >> "$fail_log"; exit 1; }
 mkdir -p "${DRAFT_BLAST_RESULT_DIR}"
 blast_result_file="${DRAFT_BLAST_RESULT_DIR}/${blast_db_name}/iteration_${iter}_draft_blast_results.txt"
-filter_blast_results "$blast_result_file" "$FILTERED_DRAFT_BLAST_RESULT_DIR" "$MIN_COVERAGE" "draft"
+filter_blast_results "$blast_result_file" "$FILTERED_DRAFT_BLAST_RESULT_DIR" "$MIN_COVERAGE" "draft" || { echo "iteration_${iter}: filter blast results failed" >> "$fail_log"; exit 1; }
 ) 2>/dev/null &
 while (( $(jobs -r | wc -l) >= max_parallel_iter )); do sleep 1; done
 done
 wait
+if [[ -s "$fail_log" ]]; then
+echo "WARNING: Some draft iterations failed for $taxon. See $fail_log" >&2
+fi
 }
 
 # Set up the output file headers
@@ -557,12 +568,26 @@ mapfile -t ALL_GENES < <(grep "^>" "$GENE_FILE" | sed 's/>//' | awk '{print $1}'
 TMP_OUT="${TMP_SUMMARY_DIR}/${local_taxon}.csv"
 for GENE_ID in "${ALL_GENES[@]}"; do
 if grep -qx -- "$GENE_ID" <<< "$GENE_WITH_HITS" 2>/dev/null || true; then
-COMPLETE_GENOMES_WITH_TARGET_GENES=$(awk -v gene="$GENE_ID" '$1 == gene {split($2, a, "|"); print a[1]}' "$FILTERED_BLAST_RESULT_DIR/filtered_${local_taxon}_complete_blast_results.txt" 2>/dev/null | sort -u | wc -l)
+COMPLETE_GENOMES_WITH_TARGET_GENES=$(awk -v gene="$GENE_ID" '$1 == gene {split($2, a, "\\|"); print a[1]}' "$FILTERED_BLAST_RESULT_DIR/filtered_${local_taxon}_complete_blast_results.txt" 2>/dev/null | sort -u | wc -l)
 if [[ "$MODE" == "heavy" && "$TOTAL_DRAFT_GENOMES" -gt 0 ]]; then
 TOTAL_DRAFT_GENOMES_WITH_TARGET_GENES=0
 PER_ITER_COUNTS=""
 for ((i=1; i<="$ITERATIONS"; i++)); do
-DRAFT_GENOMES_WITH_TARGET_GENES=$(awk -v gene="$GENE_ID" '$1 == gene {print $2}' "$FILTERED_DRAFT_BLAST_RESULT_DIR/${local_taxon}/filtered_iteration_${i}_draft_blast_results.txt" 2>/dev/null | cut -c1-8 | sort -u | wc -l)
+DRAFT_GENOMES_WITH_TARGET_GENES=$(awk -v gene="$GENE_ID" '
+$1 == gene {
+split($2, a, "\\|")
+genome_id = a[1]
+if (genome_id == "") {
+raw_id = $2
+sub(/^NZ_/, "", raw_id)
+if (match(raw_id, /^([A-Z]{4,6}[0-9]{2})[0-9]{6}\.[0-9]+$/, m)) {
+genome_id = m[1]
+} else {
+genome_id = raw_id
+}
+}
+print genome_id
+}' "$FILTERED_DRAFT_BLAST_RESULT_DIR/${local_taxon}/filtered_iteration_${i}_draft_blast_results.txt" 2>/dev/null | sort -u | wc -l)
 TOTAL_DRAFT_GENOMES_WITH_TARGET_GENES=$((TOTAL_DRAFT_GENOMES_WITH_TARGET_GENES + DRAFT_GENOMES_WITH_TARGET_GENES))
 PER_ITER_COUNTS+="${DRAFT_GENOMES_WITH_TARGET_GENES}"$'\n'
 done

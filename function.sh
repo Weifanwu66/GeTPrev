@@ -882,23 +882,16 @@ fi
 echo "$sample_size $iterations"
 }
 
-# download random draft genomes
-function download_random_draft_genomes() {
+# build and cache the full valid draft accession pool once per taxon
+function get_valid_draft_accessions_for_taxon() {
 local input="$1"
-local sample_size="$2"
-local output_dir="$3"
-local iteration="$4"
+local output_file="$2"
 local query="$(extract_taxon_info "$input")"
-local taxon_dir_name="${query// /_}"
-taxon_dir_name="${taxon_dir_name//./}"
-local iteration_dir="${output_dir}/${taxon_dir_name}/genomes_${iteration}"
-mkdir -p "$iteration_dir"
 local accessions=""
 local all_accessions
 local strict_accessions
 local filtered_accessions
-local valid_accessions
-
+mkdir -p "$(dirname "$output_file")"
 if [[ "$query" == "Salmonella enterica subsp. enterica serovar monophasic Typhimurium" ]]; then
 while read -r actual_name; do
 accessions+=$(ncbi-genome-download bacteria --genera "Salmonella enterica subsp. enterica serovar $actual_name" \
@@ -908,23 +901,49 @@ done < "$MONOPHASIC_TYPHIMURIUM_LIST"
 elif [[ "$query" == "Salmonella enterica subsp. enterica serovar Typhimurium" ]]; then
 all_accessions=$(ncbi-genome-download bacteria --genera "$query" --assembly-level contig --section genbank --dry-run | tail -n +2 | awk -F '/' '{print $NF}' | awk '{print $1}')
 strict_accessions=$(get_strict_accessions "$query") 
-accessions=$(comm -12 <(echo "$all_accessions" | sort) <(echo "$strict_accessions" | sort))
+accessions=$(comm -12 <(echo "$all_accessions" | sort -u) <(echo "$strict_accessions" | sort -u))
 elif [[ "$query" == "Salmonella enterica subsp. enterica serovar Typhi" ]]; then
 all_accessions=$(ncbi-genome-download bacteria --genera "$query" --assembly-level contig --section genbank --dry-run | tail -n +2 | awk -F '/' '{print $NF}' | awk '{print $1}')
 strict_accessions=$(get_strict_accessions "$query")
-accessions=$(comm -12 <(echo "$all_accessions" | sort) <(echo "$strict_accessions" | sort))
+accessions=$(comm -12 <(echo "$all_accessions" | sort -u) <(echo "$strict_accessions" | sort -u))
 else
 accessions=$(ncbi-genome-download bacteria --genera "$query" --assembly-level contig --section genbank --dry-run | tail -n +2 | awk -F '/' '{print $NF}' | awk '{print $1}')
 fi
 
-# filter by contig count < 500
-filtered_accessions=$(awk -F '\t' '
-!/^#/ && $12=="Contig" && $31<500 {print $1}
-' "$METADATA_FILE" | sort -u)
+# filter by contig count < 500 and intersect once for stable per-taxon accession pool
+filtered_accessions=$(awk -F '\t' '!/^#/ && $12=="Contig" && $31<500 {print $1}' "$METADATA_FILE" | sort -u)
+comm -12 <(echo "$accessions" | sed '/^$/d' | sort -u) <(echo "$filtered_accessions" | sort -u) > "$output_file"
 
-# intersect + sample
-valid_accessions=$(comm -12 <(echo "$accessions" | sort -u) <(echo "$filtered_accessions") | shuf -n "$sample_size")
-echo "$valid_accessions" > "${iteration_dir}/selected_accessions.txt"
+if [[ ! -s "$output_file" ]]; then
+echo "Error: No valid draft accessions found for '$query'. Checked file: $output_file" >&2
+return 1
+fi
+}
+
+# sample random draft genomes from the cached valid accession pool
+function download_random_draft_genomes() {
+local input="$1"
+local sample_size="$2"
+local output_dir="$3"
+local iteration="$4"
+local valid_accessions_file="$5"
+local query="$(extract_taxon_info "$input")"
+local taxon_dir_name="${query// /_}"
+taxon_dir_name="${taxon_dir_name//./}"
+local iteration_dir="${output_dir}/${taxon_dir_name}/genomes_${iteration}"
+mkdir -p "$iteration_dir"
+
+if [[ ! -s "$valid_accessions_file" ]]; then
+echo "Error: Cached valid accession pool missing or empty for '$query': $valid_accessions_file" >&2
+return 1
+fi
+
+shuf -n "$sample_size" "$valid_accessions_file" > "${iteration_dir}/selected_accessions.txt"
+if [[ ! -s "${iteration_dir}/selected_accessions.txt" ]]; then
+echo "Error: selected_accessions.txt is empty for '$query' iteration $iteration." >&2
+return 1
+fi
+
 download_with_retry ncbi-genome-download bacteria --assembly-accessions "${iteration_dir}/selected_accessions.txt" \
  --formats fasta --assembly-level contig --section genbank --output-folder "$iteration_dir" --flat-output
 if compgen -G "$iteration_dir"/*_genomic.fna.gz > /dev/null; then
@@ -954,9 +973,17 @@ exit 1
 fi
 local concatenated_genome="${genome_dir}/combined.fna"
 echo "Concatenating genome FASTAs for $taxon..."
-find "$genome_dir" -name "*_genomic.fna" -exec cat {} + > "$concatenated_genome"
+find "$genome_dir" -type f -name "*_genomic.fna" | while read -r file; do
+accession=$(basename "$file" | grep -oE 'GC[AF]_[0-9]+\.[0-9]+')
+[[ -z "$accession" ]] && accession=$(basename "$file" | sed 's/_genomic\.fna$//')
+awk -v acc="$accession" '/^>/{print ">" acc "|" substr($0,2); next} 1' "$file"
+done > "$concatenated_genome"
 echo "Building BLAST DB for $taxon..."
 makeblastdb -in "$concatenated_genome" -dbtype nucl -out "$blast_db"
+if [[ ! -f "${blast_db}.nhr" && ! -f "${blast_db}.00.nhr" ]]; then
+echo "Error: makeblastdb failed for $taxon iteration $iteration (db: $blast_db)" >&2
+return 1
+fi
 find "$genome_dir" -type f -name "*_genomic.fna" -exec gzip -f {} +
 rm -f "$concatenated_genome"
 local blast_output="${output_dir}/${safe_taxon}/iteration_${iteration}_draft_blast_results.txt"
