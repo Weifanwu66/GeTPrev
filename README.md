@@ -9,7 +9,7 @@ This tool is designed for estimating the prevalence of specific genes in bacteri
 
 > ⚠️ **Note:** Users must choose between:
 >
-> - **Pre-built default database**: Use the included curated BLAST database of complete genomes from seven Enterobacteriaceae genus.
+> - **Default database**: Use the curated BLAST database of complete genomes from seven genera within the family Enterobacteriaceae that are of major food safety relevance, either as a pre-built or a locally generated version.
 > - **Custom genome panel (`-d`)**: Create your own complete-genome BLAST database using any bacterial taxon.
 >
 
