@@ -11,8 +11,12 @@ FAILED_FLAG="${WORKDIR}/build_custom_db_failed.flag"
 > "$FAILED_FLAG"
 OUTPUT_FILE=""
 DATABASE_DIR="${WORKDIR}/database"
-BLAST_DB_DIR="${DATABASE_DIR}/complete_blast_db"
-CUSTOM_GENOMES_DIR="${DATABASE_DIR}/complete_genomes"
+DEFAULT_COMPLETE_GENOMES_ROOT="${DATABASE_DIR}/default_complete_genomes"
+DEFAULT_COMPLETE_BLAST_DB_ROOT="${DATABASE_DIR}/default_complete_blast_db"
+CUSTOM_COMPLETE_GENOMES_ROOT="${DATABASE_DIR}/custom_complete_genomes"
+CUSTOM_COMPLETE_BLAST_DB_ROOT="${DATABASE_DIR}/custom_complete_blast_db"
+COMPLETE_GENOMES_DIR=""
+BLAST_DB_DIR=""
 BLAST_RESULT_DIR="${WORKDIR}/result/complete_blast_results"
 FILTERED_BLAST_RESULT_DIR="${WORKDIR}/result/filtered_complete_blast_results"
 DRAFT_GENOMES_ROOT="${DATABASE_DIR}/draft_genomes"
@@ -21,6 +25,8 @@ DRAFT_BLAST_DB_ROOT="${DATABASE_DIR}/draft_blast_db"
 DRAFT_BLAST_DB_DIR=""
 DRAFT_BLAST_RESULT_DIR="${WORKDIR}/result/draft_blast_results"
 FILTERED_DRAFT_BLAST_RESULT_DIR="${WORKDIR}/result/filtered_draft_blast_results"
+COMPLETE_DOWNLOAD_MISSING_LOG_DIR=""
+DRAFT_DOWNLOAD_MISSING_LOG_DIR=""
 FORCE_REBUILD=false
 GET_ALL_SPECIES=false
 # job scheduler variables
@@ -45,7 +51,7 @@ usage() {
     echo "-C THREADS        : Number of CPU cores to request for SLURM."
     echo "-a ACCOUNT        : SLURM account/project (if needed)."
     echo "-H MODE           : Analysis mode ('light' or 'heavy'). Default is light."
-    echo "-F FORCE_REBUILD  : Set to true to rebuild previous custom complete genomes database (default: false)."
+    echo "-F FORCE_REBUILD  : Set to true to build a new custom complete genomes database (default: false)."
     echo "--get-all-species : Automatically expand genus-level input to species classification if genus only during custom targets database construction (default: false)." 
     echo "-h, --help        : Show this help message and exit."
 }
@@ -72,9 +78,18 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
+get_latest_timestamp_dir() {
+local parent_dir="$1"
+if [[ ! -d "$parent_dir" ]]; then
+return 1
+fi
+find "$parent_dir" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1
+}
+
 # Define a run-specific result directory
 if [[ "$hpc" == "T" || "$queue" == "NA" ]]; then
-RUN_ID="$(date +%Y%m%d_%H%M%S)_i${MIN_IDENTITY}_c${MIN_COVERAGE}"
+BUILD_TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+RUN_ID="${BUILD_TIMESTAMP}_i${MIN_IDENTITY}_c${MIN_COVERAGE}"
 RESULT_ROOT="${WORKDIR}/result/${RUN_ID}"
 
 BLAST_RESULT_DIR="${RESULT_ROOT}/complete_blast_results"
@@ -83,10 +98,11 @@ DRAFT_GENOMES_DIR="${DRAFT_GENOMES_ROOT}/${RUN_ID}"
 DRAFT_BLAST_DB_DIR="${DRAFT_BLAST_DB_ROOT}/${RUN_ID}"
 DRAFT_BLAST_RESULT_DIR="${RESULT_ROOT}/draft_blast_results"
 FILTERED_DRAFT_BLAST_RESULT_DIR="${RESULT_ROOT}/filtered_draft_blast_results"
+DRAFT_DOWNLOAD_MISSING_LOG_DIR="${DRAFT_GENOMES_DIR}/missing_log"
 
 mkdir -p "$BLAST_RESULT_DIR" "$FILTERED_BLAST_RESULT_DIR"
 if [[ "$MODE" == "heavy" ]]; then
-mkdir -p "$DRAFT_GENOMES_DIR" "$DRAFT_BLAST_DB_DIR" "$DRAFT_BLAST_RESULT_DIR" "$FILTERED_DRAFT_BLAST_RESULT_DIR"
+mkdir -p "$DRAFT_GENOMES_DIR" "$DRAFT_BLAST_DB_DIR" "$DRAFT_BLAST_RESULT_DIR" "$FILTERED_DRAFT_BLAST_RESULT_DIR" "$DRAFT_DOWNLOAD_MISSING_LOG_DIR"
 fi
 
 # If user gave -o as a filename (no path), store it under RESULT_ROOT
@@ -299,9 +315,21 @@ exit 1
 fi
 
 if [[ -z "$DOWNLOAD_FILE" ]]; then
+LATEST_DEFAULT_BUILD=$(get_latest_timestamp_dir "$DEFAULT_COMPLETE_BLAST_DB_ROOT")
+if [[ -z "$LATEST_DEFAULT_BUILD" ]]; then
+echo "Error: No default complete BLAST database found under $DEFAULT_COMPLETE_BLAST_DB_ROOT." >&2
+echo "Please build or download the default database first, or include -d to specify a custom database." >&2
+exit 1
+fi
+
+BLAST_DB_DIR="${DEFAULT_COMPLETE_BLAST_DB_ROOT}/${LATEST_DEFAULT_BUILD}"
+COMPLETE_GENOMES_DIR="${DEFAULT_COMPLETE_GENOMES_ROOT}/${LATEST_DEFAULT_BUILD}"
+COMPLETE_DOWNLOAD_MISSING_LOG_DIR="${COMPLETE_GENOMES_DIR}/missing_log"
+mkdir -p "$COMPLETE_DOWNLOAD_MISSING_LOG_DIR"
+
 if [[ ! -d "$BLAST_DB_DIR" || -z $(ls -A "$BLAST_DB_DIR"/*.nsq 2>/dev/null) ]]; then
-echo "Error: No complete genome BLAST database detected in $BLAST_DB_DIR."
-echo "Please download or build the default BLAST database first, or include -d to specify a custom database."
+echo "Error: No complete genome BLAST database detected in $BLAST_DB_DIR." >&2
+echo "Please download or build the default BLAST database first, or include -d to specify a custom database." >&2
 exit 1
 fi
 fi
@@ -328,22 +356,32 @@ fi
 # Handle custom download if provided
 if [[ -n "${DOWNLOAD_FILE:-}" ]]; then
 echo "Custom panel download requested"
-GENOME_DIR="$CUSTOM_GENOMES_DIR"
-CUSTOM_PANEL_CHECKPOINT="$GENOME_DIR/.custom_download_complete"
-mkdir -p "$GENOME_DIR"
-mkdir -p "$BLAST_DB_DIR"
-> "$FAILED_FLAG"
 
-if [[ -f "$CUSTOM_PANEL_CHECKPOINT" && "${FORCE_REBUILD,,}" != "true" ]]; then
-echo "Custom panel database already downloaded. Skipping rebuild."
+LATEST_CUSTOM_BUILD=$(get_latest_timestamp_dir "$CUSTOM_COMPLETE_BLAST_DB_ROOT")
+
+if [[ "${FORCE_REBUILD,,}" != "true" && -n "$LATEST_CUSTOM_BUILD" ]]; then
+echo "Reusing latest custom database build: $LATEST_CUSTOM_BUILD"
+COMPLETE_GENOMES_DIR="${CUSTOM_COMPLETE_GENOMES_ROOT}/${LATEST_CUSTOM_BUILD}"
+BLAST_DB_DIR="${CUSTOM_COMPLETE_BLAST_DB_ROOT}/${LATEST_CUSTOM_BUILD}"
+COMPLETE_DOWNLOAD_MISSING_LOG_DIR="${COMPLETE_GENOMES_DIR}/missing_log"
+mkdir -p "$COMPLETE_DOWNLOAD_MISSING_LOG_DIR"
+GENOME_DIR="$COMPLETE_GENOMES_DIR"
+CUSTOM_PANEL_CHECKPOINT="$GENOME_DIR/.custom_download_complete"
 else
+
 if [[ "${FORCE_REBUILD,,}" == "true" ]]; then
-echo "FORCE_REBUILD is true. Removing previous custom genomes and BLAST DB..."
-rm -rf "$GENOME_DIR"/*
-rm -rf "$BLAST_DB_DIR"/*
-rm -rf "$DRAFT_GENOMES_DIR"/*
-rm -rf "$DRAFT_BLAST_DB_DIR"/*
+echo "FORCE_REBUILD=true: creating a new timestamped custom database build: ${BUILD_TIMESTAMP}"
+else
+echo "No existing custom database build found. Creating a new one."
 fi
+
+COMPLETE_GENOMES_DIR="${CUSTOM_COMPLETE_GENOMES_ROOT}/${BUILD_TIMESTAMP}"
+BLAST_DB_DIR="${CUSTOM_COMPLETE_BLAST_DB_ROOT}/${BUILD_TIMESTAMP}"
+COMPLETE_DOWNLOAD_MISSING_LOG_DIR="${COMPLETE_GENOMES_DIR}/missing_log"
+GENOME_DIR="$COMPLETE_GENOMES_DIR"
+CUSTOM_PANEL_CHECKPOINT="$GENOME_DIR/.custom_download_complete"
+mkdir -p "$GENOME_DIR" "$BLAST_DB_DIR" "$COMPLETE_DOWNLOAD_MISSING_LOG_DIR"
+> "$FAILED_FLAG"
 
 TOTAL_CPUS=$(get_cpus)
 MAX_PARALLEL_JOBS=$(( TOTAL_CPUS * 2 / 3 ))
@@ -498,20 +536,20 @@ local max_parallel_iter=$(( $(get_cpus) / 3 ))
 (( iterations < max_parallel_iter )) && max_parallel_iter=$iterations
 local iter_threads=$(( BLAST_THREADS / max_parallel_iter ))
 (( iter_threads < 1 )) && iter_threads=1
-local fail_log="${RESULT_ROOT:-${WORKDIR}/result}/draft_iteration_failures_${blast_db_name}.log"
+local fail_log="${RESULT_ROOT:-${WORKDIR}/result}/draft_iteration_failures.log"
 : > "$fail_log"
 valid_accessions_file="${DRAFT_GENOMES_DIR}/${blast_db_name}/valid_accessions.txt"
-get_valid_draft_accessions_for_taxon "$taxon" "$valid_accessions_file" || { echo "failed to build valid accession pool" >> "$fail_log"; return 1; }
+get_valid_draft_accessions_for_taxon "$taxon" "$valid_accessions_file" || { echo "${taxon} | valid accession pool generation failed" >> "$fail_log"; return 1; }
 local i
 for ((i=1; i<=iterations; i++)); do
 (
 local iter="$i"
 echo "Starting iterations $iter/$iterations for $taxon"
-download_random_draft_genomes "$taxon" "$sample_size" "$DRAFT_GENOMES_DIR" "$iter" "$valid_accessions_file"|| { echo "iteration_${iter}: download random draft genomes failed" >> "$fail_log"; exit 1; }
-perform_blast "$GENE_FILE" "$MIN_IDENTITY" "$DRAFT_BLAST_RESULT_DIR" "$iter" "$taxon" "$iter_threads"|| { echo "iteration_${iter}: perform blast failed" >> "$fail_log"; exit 1; }
+download_random_draft_genomes "$taxon" "$sample_size" "$DRAFT_GENOMES_DIR" "$iter" "$valid_accessions_file"|| { echo "${taxon} | iteration_${iter}: download random draft genomes failed" >> "$fail_log"; exit 1; }
+perform_blast "$GENE_FILE" "$MIN_IDENTITY" "$DRAFT_BLAST_RESULT_DIR" "$iter" "$taxon" "$iter_threads"|| { echo "${taxon} | iteration_${iter}: perform blast failed" >> "$fail_log"; exit 1; }
 mkdir -p "${DRAFT_BLAST_RESULT_DIR}"
 blast_result_file="${DRAFT_BLAST_RESULT_DIR}/${blast_db_name}/iteration_${iter}_draft_blast_results.txt"
-filter_blast_results "$blast_result_file" "$FILTERED_DRAFT_BLAST_RESULT_DIR" "$MIN_COVERAGE" "draft" || { echo "iteration_${iter}: filter blast results failed" >> "$fail_log"; exit 1; }
+filter_blast_results "$blast_result_file" "$FILTERED_DRAFT_BLAST_RESULT_DIR" "$MIN_COVERAGE" "draft" || { echo "${taxon} | iteration_${iter}: filter blast results failed" >> "$fail_log"; exit 1; }
 ) 2>/dev/null &
 while (( $(jobs -r | wc -l) >= max_parallel_iter )); do sleep 1; done
 done
@@ -530,8 +568,8 @@ fi
 # Initialize TAXON_LIST
 if [[ -n "$TAXON_FILE" ]]; then
 TAXON_LIST=$(< "$TAXON_FILE")
-elif [[ "$GET_ALL_SPECIES" == true && -f "$CUSTOM_GENOMES_DIR/expanded_species_list.txt" ]]; then
-TAXON_LIST=$(< "$CUSTOM_GENOMES_DIR/expanded_species_list.txt")
+elif [[ "$GET_ALL_SPECIES" == true && -f "$COMPLETE_GENOMES_DIR/expanded_species_list.txt" ]]; then
+TAXON_LIST=$(< "$COMPLETE_GENOMES_DIR/expanded_species_list.txt")
 elif [[ -n "$DOWNLOAD_FILE" ]]; then
 TAXON_LIST=$(< "$DOWNLOAD_FILE")
 else

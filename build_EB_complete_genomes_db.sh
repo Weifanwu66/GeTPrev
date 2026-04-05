@@ -13,20 +13,22 @@ THREADS=${CPUS:-16}
 LOCAL_RUN=${LOCAL_RUN:-false}
 WORKDIR=$(pwd)
 DATABASE_DIR="$WORKDIR/database"
-GENOME_DIR="$DATABASE_DIR/complete_genomes"
-BLAST_DB_DIR="$DATABASE_DIR/complete_blast_db"
+GENOME_DIR="$DATABASE_DIR/default_complete_genomes"
+BLAST_DB_DIR="$DATABASE_DIR/default_complete_blast_db"
 FAILED_FLAG="$WORKDIR/build_EB_db_failed.flag"
 MONOPHASIC_TYPHIMURIUM_LIST="$DATABASE_DIR/monophasic_Typhimurium_list.txt"
 DUPLICATE_SEROTYPE_LIST="$DATABASE_DIR/duplicate_sal_serotypes.txt"
 SEROTYPE_LIST_FILE="$GENOME_DIR/Salmonella/salmonella_serotype_list.txt"
 SUBSPECIES_LIST_FILE="$GENOME_DIR/Salmonella/salmonella_subspecies_list.txt"
 METADATA_FILE="$DATABASE_DIR/assembly_summary_bacteria.txt"
+COMPLETE_DOWNLOAD_MISSING_LOG_DIR="$GENOME_DIR/missing_log"
 export FORCE_UPDATE="true"
 
 main_workflow() {
 source function.sh || { echo "Error sourcing function.sh" >&2; exit 1; }
 mkdir -p "$GENOME_DIR"
 mkdir -p "$BLAST_DB_DIR"
+mkdir -p "$COMPLETE_DOWNLOAD_MISSING_LOG_DIR"
 > "$FAILED_FLAG"
 
 if [[ "$FORCE_UPDATE" == "true" ]]; then

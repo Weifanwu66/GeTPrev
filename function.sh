@@ -3,7 +3,7 @@ WORKDIR="$(pwd)"
 MONOPHASIC_TYPHIMURIUM_LIST="$WORKDIR/database/monophasic_Typhimurium_list.txt"
 DUPLICATE_SEROTYPE_LIST="$WORKDIR/database/duplicate_sal_serotypes.txt"
 METADATA_FILE="$WORKDIR/database/assembly_summary_bacteria.txt"
-BLAST_DB_DIR="$WORKDIR/database/complete_blast_db"
+BLAST_DB_DIR="${BLAST_DB_DIR:-$WORKDIR/database/default_complete_blast_db}"
 ASSEMBLY_LEVEL="complete"
 
 # check if dependencies are all installed
@@ -88,15 +88,15 @@ local taxon_label="$1"
 local query="$2"
 local output_dir="$3"
 local assembly_level="${4:-$ASSEMBLY_LEVEL}"
-local log_dir="$WORKDIR/database/missing_logs"
-mkdir -p "$log_dir"
+local log_dir="${COMPLETE_DOWNLOAD_MISSING_LOG_DIR:?ERROR: COMPLETE_DOWNLOAD_MISSING_LOG_DIR not set}"
 local safe_label
 safe_label=$(sanitize_taxon_label "$taxon_label")
 local log_file="$log_dir/${safe_label}_missing_fasta.log"
 local expected_accessions
 expected_accessions=$(get_expected_accessions "$query" "$assembly_level")
 if [[ -z "$expected_accessions" ]]; then
-echo "WARNING: Missing-file check skipped for '$query' because the expected accession list could not be generated (ncbi-genome-download --dry-run returned empty or failed). This may be due to network/rate-limit issues. Re-run later to validate completeness." > "$log_file"
+mkdir -p "$log_dir"
+echo "WARNING: Missing-file check skipped for '$query' because the expected accession list could not be generated (ncbi-genome-download --dry-run returned empty or failed). This may be due to network/rate-limit issues. Re-run later to validate completeness." >&2
 return
 fi
 local actual_accessions
@@ -111,6 +111,7 @@ missing_count=$(echo "$missing_accessions" | sed '/^$/d' | wc -l)
 if [[ "$missing_count" -gt 0 ]]; then
 local missing_pct
 missing_pct=$(awk -v m="$missing_count" -v t="$expected_count" 'BEGIN { if (t == 0) { print "0.00"; } else { printf "%.2f", (m / t) * 100 } }')
+mkdir -p "$log_dir"
 {
 echo "Taxon: $query"
 echo "Expected FASTA files: $expected_count"
@@ -131,8 +132,7 @@ function log_missing_selected_fasta_files() {
 local taxon_label="$1"
 local selected_accessions_file="$2"
 local output_dir="$3"
-local log_dir="$WORKDIR/database/missing_logs"
-mkdir -p "$log_dir"
+local log_dir="${DRAFT_DOWNLOAD_MISSING_LOG_DIR:?ERROR: DRAFT_DOWNLOAD_MISSING_LOG_DIR not set}"
 local safe_label
 safe_label=$(sanitize_taxon_label "$taxon_label")
 local log_file="$log_dir/${safe_label}_missing_fasta.log"
@@ -153,6 +153,7 @@ missing_count=$(echo "$missing_accessions" | sed '/^$/d' | wc -l)
 if [[ "$missing_count" -gt 0 ]]; then
 local missing_pct
 missing_pct=$(awk -v m="$missing_count" -v t="$expected_count" 'BEGIN { if (t == 0) { print "0.00"; } else { printf "%.2f", (m / t) * 100 } }')
+mkdir -p "$log_dir"
 {
 echo "Taxon: $taxon_label"
 echo "Expected FASTA files: $expected_count"
@@ -406,7 +407,7 @@ echo "Serotype downloads complete."
 function classify_salmonella_by_metadata() {
 local subspecies_list_file="$1"
 local serotype_list_file="$2"
-local genome_dir="$(pwd)/database/complete_genomes/Salmonella"
+local genome_dir="${COMPLETE_GENOMES_DIR}/Salmonella"
 echo "Classifying Salmonella genomes using metadata"
 mkdir -p "$genome_dir/Salmonella_enterica"
 mkdir -p "$genome_dir/Salmonella_bongori"
@@ -515,7 +516,7 @@ echo "Finished classifying Salmonella genomes."
 # classify other genus into species level based on metadata
 function classify_genus_by_metadata() {
 local genus="$1"
-local genome_dir="$(pwd)/database/complete_genomes/$genus"
+local genome_dir="${COMPLETE_GENOMES_DIR}/$genus"
 species_list_file="$genome_dir/species_list.txt"
 mkdir -p "$genome_dir/unclassified"
 declare -A accession_to_organism
@@ -1029,3 +1030,4 @@ awk -v cov="$coverage_threshold" '($13 > 0) && (($4 / $13 * 100) >= cov) {print 
 echo "Filtered BLAST results for complete genomes are saved to $filtered_result"
 fi
 }
+

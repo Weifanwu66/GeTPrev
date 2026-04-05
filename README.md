@@ -30,10 +30,10 @@ This tool is designed for estimating the prevalence of specific genes in bacteri
   By default, each run is written to a unique results directory based on the run timestamp and target gene coverage and identity (e.g. `20260125_110648_i95_c90`), and the summary file is named as `gene_summary.csv`. But user may optionally specify a custom output filename using -o: `-o salmonella_gene_summary.csv`.
 
 * **Force rebuild of custom database (`-F true`)**  
-  If a custom genome panel (`-d`) was previously built, the pipeline will skip rebuilding it unless forced. Use `-F true` to **delete and rebuild** all custom genome and BLAST database files from scratch.
+  If a custom genome panel (`-d`) was previously built, the pipeline will reuse the latest version unless a new build is initiated. Use `-F true` to **build** a new custom genome and BLAST database files in a new timestamped directory.
 
 * **Expand all species under genus (`--get-all-species`)**  
-  When used with a genus in the `-d` file, this option will automatically retrieve **all species** under that genus using NCBI Taxonomy and classfiy these genomes into species level for each genus.
+  When used with a genus in the `-d` file, using this option will automatically retrieve **all species** under that genus using NCBI Taxonomy and classfiy these genomes into species level for each genus.
 
 > These options are especially useful for power users working on broad taxonomic groups or managing reproducible BLAST database builds across runs.
 ---
@@ -251,13 +251,13 @@ On many HPC systems, large external downloads are throttled on login nodes. For 
 ZENODO_URL="https://zenodo.org/records/17346156/files/blastdb_all.tar.gz?download=1"
 
 # Create target folder
-mkdir -p database/complete_blast_db
+mkdir -p database/default_complete_blast_db
 
 # Download
 aria2c -x 8 -s 8 -k 10M -o blastdb_all.tar.gz "$ZENODO_URL"
 
 # Extract into the expected folder
-tar -xzf blastdb_all.tar.gz -C database/complete_blast_db
+tar -xzf blastdb_all.tar.gz -C database/default_complete_blast_db
 
 # Clean up
 rm -f blastdb_all.tar.gz
@@ -272,13 +272,13 @@ curl -L -C - -o blastdb_all.tar.gz "$ZENODO_URL"
 ZENODO_URL="https://zenodo.org/records/17346156/files/blastdb_all.tar.gz?download=1"
 
 # create target folder
-mkdir -p database/complete_blast_db
+mkdir -p database/default_complete_blast_db
 
 # download
 curl -L -o blastdb_all.tar.gz "$ZENODO_URL"
 
 # extract directly into the expected folder
-tar -xzf blastdb_all.tar.gz -C database/complete_blast_db
+tar -xzf blastdb_all.tar.gz -C database/default_complete_blast_db
 
 # clean up
 rm -f blastdb_all.tar.gz
@@ -290,13 +290,13 @@ Running the pipeline directly on Windows is not recommended, as many bioinformat
 $ZENODO_URL = "https://zenodo.org/records/17346156/files/blastdb_all.tar.gz?download=1"
 
 # create target folder
-New-Item -ItemType Directory -Force -Path "database/complete_blast_db" | Out-Null
+New-Item -ItemType Directory -Force -Path "database/default_complete_blast_db" | Out-Null
 
 # download
 Invoke-WebRequest -Uri $ZENODO_URL -OutFile "blastdb_all.tar.gz"
 
 # extract (Windows 10+ has tar)
-tar -xzf .\blastdb_all.tar.gz -C .\database\complete_blast_db
+tar -xzf .\blastdb_all.tar.gz -C .\database\default_complete_blast_db
 
 # clean up
 Remove-Item .\blastdb_all.tar.gz
