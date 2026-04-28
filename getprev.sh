@@ -315,6 +315,11 @@ exit 1
 fi
 
 if [[ -z "$DOWNLOAD_FILE" ]]; then
+# Case 1: manually downloaded DB from zenodo (no timestamp folder)
+if compgen -G "$DEFAULT_COMPLETE_BLAST_DB_ROOT/*.nsq" > /dev/null; then
+echo "Using manually downloaded default BLAST database: $DEFAULT_COMPLETE_BLAST_DB_ROOT"
+BLAST_DB_DIR="$DEFAULT_COMPLETE_BLAST_DB_ROOT"
+else
 LATEST_DEFAULT_BUILD=$(get_latest_timestamp_dir "$DEFAULT_COMPLETE_BLAST_DB_ROOT")
 if [[ -z "$LATEST_DEFAULT_BUILD" ]]; then
 echo "Error: No default complete BLAST database found under $DEFAULT_COMPLETE_BLAST_DB_ROOT." >&2
@@ -326,9 +331,9 @@ BLAST_DB_DIR="${DEFAULT_COMPLETE_BLAST_DB_ROOT}/${LATEST_DEFAULT_BUILD}"
 COMPLETE_GENOMES_DIR="${DEFAULT_COMPLETE_GENOMES_ROOT}/${LATEST_DEFAULT_BUILD}"
 COMPLETE_DOWNLOAD_MISSING_LOG_DIR="${COMPLETE_GENOMES_DIR}/missing_log"
 mkdir -p "$COMPLETE_DOWNLOAD_MISSING_LOG_DIR"
-
+fi
 if [[ ! -d "$BLAST_DB_DIR" || -z $(ls -A "$BLAST_DB_DIR"/*.nsq 2>/dev/null) ]]; then
-echo "Error: No complete genome BLAST database detected in $BLAST_DB_DIR." >&2
+echo "Error: No complete genome BLAST database detected in $BLAST_DB_DIR or inside a timestamped subfolder underneath." >&2
 echo "Please download or build the default BLAST database first, or include -d to specify a custom database." >&2
 exit 1
 fi
