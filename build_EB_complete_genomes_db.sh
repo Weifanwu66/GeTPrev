@@ -26,6 +26,7 @@ export FORCE_UPDATE="true"
 
 main_workflow() {
 source function.sh || { echo "Error sourcing function.sh" >&2; exit 1; }
+BUILD_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 mkdir -p "$GENOME_DIR"
 mkdir -p "$BLAST_DB_DIR"
 mkdir -p "$COMPLETE_DOWNLOAD_MISSING_LOG_DIR"
@@ -97,6 +98,8 @@ sanity_check_unique_genomes "$GENOME_DIR"
 
 echo "[$(date '+%F %T')] Building BLAST database"
 build_blastdb_for_EB_default "$GENOME_DIR" "$BLAST_DB_DIR"
+echo "$BUILD_TIMESTAMP" > "$BLAST_DB_DIR/VERSION"
+echo "DB version: $BUILD_TIMESTAMP"
 
 generate_directory_csv "$GENOME_DIR"
 echo "[$(date '+%F %T')] Default Enterobacteriaceae database build complete"
