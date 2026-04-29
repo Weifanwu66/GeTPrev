@@ -14,7 +14,8 @@ LOCAL_RUN=${LOCAL_RUN:-false}
 WORKDIR=$(pwd)
 DATABASE_DIR="$WORKDIR/database"
 GENOME_DIR="$DATABASE_DIR/default_complete_genomes"
-BLAST_DB_DIR="$DATABASE_DIR/default_complete_blast_db"
+COMPLETE_GENOMES_DIR="$GENOME_DIR"
+BLAST_DB_ROOT="$DATABASE_DIR/default_complete_blast_db"
 FAILED_FLAG="$WORKDIR/build_EB_db_failed.flag"
 MONOPHASIC_TYPHIMURIUM_LIST="$DATABASE_DIR/monophasic_Typhimurium_list.txt"
 DUPLICATE_SEROTYPE_LIST="$DATABASE_DIR/duplicate_sal_serotypes.txt"
@@ -26,16 +27,17 @@ export FORCE_UPDATE="true"
 
 main_workflow() {
 source function.sh || { echo "Error sourcing function.sh" >&2; exit 1; }
-BUILD_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+BUILD_DATE=$(date +%Y-%m-%d)
+BLAST_DB_DIR="$BLAST_DB_ROOT/$BUILD_DATE"
 mkdir -p "$GENOME_DIR"
+mkdir -p "$BLAST_DB_ROOT"
 mkdir -p "$BLAST_DB_DIR"
 mkdir -p "$COMPLETE_DOWNLOAD_MISSING_LOG_DIR"
 > "$FAILED_FLAG"
 
 if [[ "$FORCE_UPDATE" == "true" ]]; then
-echo "[$(date '+%F %T')] Cleaning up old genome and BLAST database directories"
+echo "[$(date '+%F %T')] Cleaning up old genome and BLAST database directories (BLAST DB history is preserved)."
 rm -rf "$GENOME_DIR"/*
-rm -rf "$BLAST_DB_DIR"/*
 fi
 
 echo "[$(date '+%F %T')] Downloading latest assembly metadata"
@@ -44,7 +46,8 @@ download_with_retry wget -O "$METADATA_FILE" "https://ftp.ncbi.nlm.nih.gov/genom
 TOTAL_CPUS=$(get_cpus)
 MAX_PARALLEL_JOBS=$(( TOTAL_CPUS * 2 / 3 ))
 max_parallel_genus=$(( MAX_PARALLEL_JOBS / 6 ))
-
+(( max_parallel_genus < 1 )) && max_parallel_genus=1
+(( max_parallel_genus > 2 )) && max_parallel_genus=5
 (
 echo "[$(date '+%F %T')] Processing Salmonella"
 if ! download_single_genus "Salmonella" "$GENOME_DIR"; then
@@ -96,10 +99,17 @@ fi
 echo "[$(date '+%F %T')] Checking for duplicated genomes"
 sanity_check_unique_genomes "$GENOME_DIR"
 
+echo "[$(date '+%F %T')] Validating downloaded genome files before BLAST build"
+invalid_gzip_files=$(find "$GENOME_DIR" -type f -name "*_genomic.fna.gz" ! -exec gzip -t {} \; -print)
+if [[ -n "$invalid_gzip_files" ]]; then
+echo "Error: Invalid gzip genome files detected. Aborting build." >&2
+echo "$invalid_gzip_files" >&2
+exit 1
+fi
+
 echo "[$(date '+%F %T')] Building BLAST database"
 build_blastdb_for_EB_default "$GENOME_DIR" "$BLAST_DB_DIR"
-echo "$BUILD_TIMESTAMP" > "$BLAST_DB_DIR/VERSION"
-echo "DB version: $BUILD_TIMESTAMP"
+echo "DB date build directory: $BLAST_DB_DIR"
 
 generate_directory_csv "$GENOME_DIR"
 echo "[$(date '+%F %T')] Default Enterobacteriaceae database build complete"

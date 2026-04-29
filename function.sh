@@ -173,17 +173,46 @@ function download_single_genus() {
 local genus="$1"
 local output_dir="$2"
 local genus_dir="${output_dir}/${genus}"
+local max_attempts=5
+local attempt=1
+local delay=5
 if [[ -n "$(find "$genus_dir" -type f \( -name "*_genomic.fna" -o -name "*_genomic.fna.gz" \) -print -quit 2>/dev/null)" ]]; then
 echo "Genomes already exist for $genus, skipping"
 return
 fi
 mkdir -p "$genus_dir"
+while [[ $attempt -le $max_attempts ]]; do
 echo "Downloading genus: $genus"
+find "$genus_dir" -type f -name "*_genomic.fna.gz" -delete
 download_with_retry ncbi-genome-download bacteria --genera "$genus" --assembly-level "$ASSEMBLY_LEVEL" \
- --formats fasta --section genbank --output-folder "$genus_dir" --flat-output
+ --formats fasta --section genbank --output-folder "$genus_dir" --flat-output || true
+invalid_count=0
+downloaded_count=0
+while IFS= read -r gz_file; do
+downloaded_count=$((downloaded_count + 1))
+if ! gzip -t "$gz_file" 2>/dev/null; then
+echo "Invalid gzip detected (will retry): $gz_file" >&2
+rm -f "$gz_file"
+invalid_count=$((invalid_count + 1))
+fi
+done < <(find "$genus_dir" -type f -name "*_genomic.fna.gz")
+
+if [[ "$downloaded_count" -gt 0 && "$invalid_count" -eq 0 ]]; then
+break
+fi
+if [[ $attempt -eq $max_attempts ]]; then
+echo "FAILED DOWNLOAD: $genus has $invalid_count invalid gzip files after $max_attempts attempts." >&2
+return 1
+fi
+sleep "$delay"
+delay=$((delay * 2))
+attempt=$((attempt + 1))
+done
+
 if compgen -G "$genus_dir"/*_genomic.fna.gz > /dev/null; then
 find "$genus_dir" -type f -name "*_genomic.fna.gz" -exec gunzip -f {} +
 fi
+sleep $((RANDOM % 2 + 1))
 log_missing_fasta_files "$genus" "$genus" "$genus_dir" "$ASSEMBLY_LEVEL"
 echo "Downloaded and organized genomes for $genus"
 }

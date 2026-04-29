@@ -83,7 +83,8 @@ local parent_dir="$1"
 if [[ ! -d "$parent_dir" ]]; then
 return 1
 fi
-find "$parent_dir" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1
+find "$parent_dir" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | \
+grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' | sort | tail -n 1
 }
 
 # Define a run-specific result directory
@@ -315,7 +316,7 @@ exit 1
 fi
 
 if [[ -z "$DOWNLOAD_FILE" ]]; then
-# Case 1: manually downloaded DB from zenodo (no timestamp folder)
+# Case 1: manually downloaded DB from zenodo (no timestamp folder; flat layout)
 if compgen -G "$DEFAULT_COMPLETE_BLAST_DB_ROOT/*.nsq" > /dev/null; then
 echo "Using manually downloaded default BLAST database: $DEFAULT_COMPLETE_BLAST_DB_ROOT"
 BLAST_DB_DIR="$DEFAULT_COMPLETE_BLAST_DB_ROOT"
@@ -584,7 +585,7 @@ sed -E '/[._][0-9]{2}$/s/[._][0-9]{2}$//' | sort -u |  sed 's/_/ /g' | sed -E 's
 fi
 # Process each taxon in TAXON_LIST using parallel summarization
 MAX_PARALLEL_SUMMARY=$(( $(get_cpus) * 2 / 3 ))
-(( MAX_PARALLEL_SUMMARY < 1 )) && MAX_PARALLEL_SUMMARY = 1
+(( MAX_PARALLEL_SUMMARY < 1 )) && MAX_PARALLEL_SUMMARY=1
 TMP_SUMMARY_DIR=$(mktemp -d "${WORKDIR}/summary_tmp.XXXXXX")
 echo "$TAXON_LIST" | while IFS= read -r taxon; do
 [[ -z "$taxon" ]] && continue
