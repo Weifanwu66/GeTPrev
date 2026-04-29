@@ -78,6 +78,12 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
+if [[ "$MODE" != "light" && "$MODE" != "heavy" ]]; then
+echo "Error: Invalid -H MODE "$MODE". Use exactly "light" or "heavy" (lowercase)."
+usage
+exit 1
+fi
+
 get_latest_timestamp_dir() {
 local parent_dir="$1"
 if [[ ! -d "$parent_dir" ]]; then
