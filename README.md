@@ -15,7 +15,7 @@ This tool is designed for estimating the prevalence of specific genes in bacteri
 
 * **Storage‑friendly metadata:** Because of the large storage requirements, genome sequence files used to build the BLAST database are **not** stored in this repository. Instead, `database/metadata` holds the assembly‑accession lists so users can re‑download any sequence on demand.  
 
-* **Pre‑built complete‑genome database:** A BLAST database built from complete genomes of the seven genera of significant food safety implications within the family of Enterobacteriaceae is provided for quick, high‑quality searches and hosted on Zenodo https://doi.org/10.5281/zenodo.17346156. The script `build_EB_complete_genomes_database.sh` is also provided for reproducing or updating the default database. 
+* **Pre‑built complete‑genome database:** A BLAST database built from complete genomes of the seven genera of significant food safety implications within the family of Enterobacteriaceae is provided for quick, high‑quality searches and hosted on Zenodo https://doi.org/10.5281/zenodo.17346156. The script `build_EB_complete_genomes_database.sh` is also provided for reproducing or updating the default database locally. See [Build default database locally](#build-default-database-locally-using-script-build_eb_complete_genomes_dbsh) for details.
 
 * **Heavy mode (`‑H heavy` + `‑t <taxon_file>`):** Adds draft genomes to the analysis. Accession IDs of draft assemblies for each target taxon are downloaded with *ncbi‑genome‑download*. Accession IDs were filtered by quality, randomly shuffled, and subsampled in iterations (Cochran’s formula with finite‑population correction; ≤ 20 iterations) to capture diversity while keeping runtime reasonable.  
 
@@ -308,6 +308,10 @@ The database-building script can be executed **either locally (no job scheduler 
 Scheduler-related parameters are **optional** and are **only used on systems with a job scheduler**.
 
 ---
+### Database Versioning (Important)
+
+When constructing the database locally, GeTPrev automatically creates **date-versioned BLAST database snapshots**:
+database/default_complete_blast_db/YYYY-MM-DD/
 
 ### Option 1: Local execution (NO job scheduler required)
 
@@ -329,6 +333,21 @@ You may override the defaults by setting environment variables when running the 
 
 ```bash
 ACCOUNT=my_account QUEUE=your_queue RAM=256GB CPUS=24 RUNTIME=08:00:00 bash build_EB_complete_genomes_db.sh
+```
+### Genome Assemblies and Disk Management
+
+During database construction, genome assemblies are downloaded and stored under: database/default_complete_genomes/
+These files are used for:
+
+- BLAST database construction  
+- Intermediate classification and processing  
+
+Because genome assemblies can require substantial storage, users may optionally remove them **after successful database construction**.
+
+To retain reproducibility while freeing disk space:
+
+```bash
+find database/default_complete_genomes -type f ! -name "genomes_list.csv" -delete
 ```
 
 ## Example commands for analysis:
@@ -368,7 +387,7 @@ bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 1
 ### 6. Customize your output file name
 
 ```bash
-bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 08:00:00 -m 64G -C 16 -F true -o my_gene_summary.csv
+bash getprev.sh -g test/test_gene.fasta -d test/download_taxon.txt -q ceres -r 08:00:00 -m 64G -C 16 -o my_gene_summary.csv
 ```
 
 ### 7. Expand genus into species
