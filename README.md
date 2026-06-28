@@ -1,7 +1,7 @@
 # Gene Taxonomic Prevalence Estimation Tool for Bacterial Taxonomic Groups
 
 ## Overview
-This tool is designed for estimating the prevalence of specific genes in bacterial taxa, integrating NCBI genome retrieval, BLAST database construction, and automated query analysis.
+This tool is designed for estimating the prevalence of specific genes in bacterial taxa, integrating NCBI genome retrieval, BLAST database construction, and automated query analysis. If you use GeTPrev, please cite: https://doi.org/10.1016/j.jfp.2026.100819. For questions or collaboration inquiries, contact Weifan Wu at weifan.wu@ufl.edu.
 
 ## Features
 
